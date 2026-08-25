@@ -1,24 +1,35 @@
 /**
- * simulator.js - Fysikkmotor for NIV Ventilatorsimulator
+ * simulator.js - Fysikkmotor for NIV Ventilatorsimulator (Hamilton-stil)
  * 
- * Løser bevegelsesligningen for lungemekanikk i sanntid:
+ * Løser bevegelsesligningen for lungemekanikk i sanntid med en fysisk ventilatormodell:
  * Paw(t) + Pmus(t) = V(t) / C + Flow(t) * R
+ * 
+ * FASE 1:
+ * - A8: Fast internt tidssteg DT = 0.2 ms for full numerisk stabilitet
+ * - A1: Kontinuerlig lungevolum (V over FRC) som aldri tvangsnullstilles, med auto-PEEP og VTI/VTE
+ * - A2: Andreordens dempet servoregulator (P_servo), blåserimpedans (R_out) og flowbegrensning (Qmax)
  */
+
+const DT = 0.0002; // Fast internt tidssteg: 0.2 ms (5000 Hz) for numerisk stabilitet
 
 class VentilatorSimulator {
     constructor() {
-        // Respiratorinnstillinger
+        // Maskinkonstanter for blåser og ventilasjonskrets (A2)
+        this.machine = {
+            R_out: 1.0, // cmH2O/(L/s) - Blåserens og slangens utgangsimpedans
+            Qmax: 3.0   // L/s (~180 L/min) - Maksimal flowkapasitet for NIV-blåser
+        };
+
+        // Respiratorinnstillinger (Klinisk NIV / Hamilton standard)
         this.settings = {
             ipap: 14,             // cmH2O (Inspiratory Positive Airway Pressure)
             epap: 5,              // cmH2O (Expiratory Positive Airway Pressure / PEEP)
             rr: 15,               // pust/minutt (Respirasjonsfrekvens)
             fio2: 30,             // % Oksygenfraksjon
-            riseTime: 0.15,       // sekunder (Tid for å nå IPAP)
+            riseTime: 0.15,       // sekunder (Tid for å nå IPAP, 0.05 - 0.90 s)
             cyclingPercent: 0.25, // 25% av toppflow avslutter innpust (E-Sense)
             leak: 0,              // L/min (Maskelekkasje)
-            triggerType: 'flow',  // 'flow' eller 'pressure'
-            triggerFlow: 3.0,     // L/min (Innstilt flow-trigger, standard 3 L/min)
-            triggerPressure: -2.0 // cmH2O (Innstilt trykk-trigger, standard -2 cmH2O)
+            triggerFlow: 3.0      // L/min (Innstilt flow-trigger: 1.0 - 5.0 L/min)
         };
 
         // Pasientfysiologi
@@ -29,47 +40,72 @@ class VentilatorSimulator {
             preset: 'normal'      // 'normal', 'copd', 'restrictive', 'custom'
         };
 
+        // Akkumulatorer for VTI og VTE
+        this._vtiAccum = 0; // ml
+        this._vteAccum = 0; // ml
+
         // Simulatortilstand
+        const C_L = this.patient.compliance / 1000;
         this.state = {
             phase: 'expiration',   // 'inspiration', 'expiration', eller 'triggering'
             timeInPhase: 0,        // sekunder i gjeldende fase
             totalTime: 0,          // total simuleringstid
-            paw: 5.0,              // cmH2O
-            volume: 0,             // ml (relativt til FRC / EPAP-balanse)
-            flow: 0,               // L/min
-            pmus: 0,               // cmH2O
-            peakFlowInPhase: 0,    // L/min (brukes til flow-cycling)
+
+            // A2: Trykk- og flowtilstander
+            P_target: this.settings.epap, // cmH2O - Måltrykk fra maskinen
+            P_servo: this.settings.epap,  // cmH2O - Andreordens servoregulator
+            dP_servo: 0.0,                // cmH2O/s - Derivert av P_servo
+            P_aw: this.settings.epap,     // cmH2O - Masketrykk
+            P_mus: 0.0,                   // cmH2O - Pasientens muskelinnsats
+            P_el: this.settings.epap,     // cmH2O - Elastisk lunge-tilbakefjæring (V / C_L)
+            Q_lunge: 0.0,                 // L/s - Lungeflow
+            Q_lekk: 0.0,                  // L/s - Lekkasjeflow
+            Q_total: 0.0,                 // L/s - Total flow levert av maskinen
+
+            // A1: Kontinuerlig volum og målte volumstørrelser
+            V: C_L * this.settings.epap,  // Liter over FRC (initialiseres til likevekt ved EPAP)
+            VTI: 0,                       // ml - integralet av positiv lungeflow gjennom innpustet
+            VTE: 0,                       // ml - integralet av negativ lungeflow gjennom utpustet
+            V_endExp: C_L * this.settings.epap, // Liter over FRC ved starten av innpust
+            PEEPi: 0.0,                   // cmH2O - Iboende PEEP (auto-PEEP)
+
+            // A8: Numerisk restakkumulator
+            dtCarry: 0.0,
+
+            // Bakoverkompatibilitet og monitor-felter
+            paw: this.settings.epap,      // cmH2O (= P_aw)
+            volume: 0.0,                  // ml over innstilt EPAP: (V - C_L * epap) * 1000
+            flow: 0.0,                    // L/min (= Q_total * 60)
+            pmus: 0.0,                    // cmH2O (= P_mus)
+
+            peakFlowInPhase: 0,           // L/min (brukes til flow-cycling)
             breathStartTime: 0,
-            justTriggered: false,
-            isFlowTrigger: false,  // True under pasientens flow-trigger innsats
-            isPawTrigger: false,   // True under pasientens trykk-trigger undertrykk
+            lastSuccessfulBreathTime: 0,
+            timeSinceLastBreath: 0,
+            breathCount: 0,               // Syklusteller for å styre f.eks. 50% trigging ved 4 L/min
+            justTriggered: false,         // True i det øyeblikket et innpust trigges
+            isApneaAlarm: false,          // True ved manglende trigger / apné
             
             // Kontinuerlige monitor-målinger
             measured: {
-                vt: 450,           // ml
-                mv: 6.75,          // L/min
-                ppeak: 14.0,       // cmH2O
-                rrTotal: 15,       // pust/min
-                ti: 1.1,           // sekunder (faktisk inspirasjonstid)
-                te: 2.9,           // sekunder (faktisk ekspirasjonstid)
-                leak: 0            // L/min
+                vt: 450,                  // ml
+                mv: 6.75,                 // L/min
+                ppeak: 14.0,              // cmH2O
+                rrTotal: 15,              // pust/min
+                ti: 1.1,                  // sekunder (faktisk inspirasjonstid)
+                te: 2.9,                  // sekunder (faktisk ekspirasjonstid)
+                leak: 0                   // L/min
             }
         };
 
         // Historikk for beregning av minuttvolum og snitt
         this.recentBreaths = [];
         this.isRunning = true;
-        this.subSteps = 10; // Numerisk substeps per frame for høy stabilitet
     }
 
     // Sett klinisk pasientprofil (Preset)
     setPreset(presetName) {
-        if (presetName === 'normal') {
-            this.patient.compliance = 50;
-            this.patient.resistance = 5;
-            this.patient.pmusMax = 2.5;
-            this.patient.preset = 'normal';
-        } else if (presetName === 'copd') {
+        if (presetName === 'copd') {
             // KOLS / Obstruktiv: Høy motstand, normal/høy compliance, lang utpust
             this.patient.compliance = 70;
             this.patient.resistance = 18;
@@ -82,17 +118,84 @@ class VentilatorSimulator {
             this.patient.pmusMax = 3.5;
             this.patient.preset = 'restrictive';
         } else {
-            this.patient.preset = 'custom';
+            // Normal
+            this.patient.compliance = 50;
+            this.patient.resistance = 5;
+            this.patient.pmusMax = 2.5;
+            this.patient.preset = 'normal';
         }
     }
 
-    // Oppdatering per frame (dt i sekunder, f.eks. 1/60s)
-    step(dt) {
+    // Nullstill simuleringstilstand (A1, A8)
+    reset() {
+        const C_L = this.patient.compliance / 1000;
+        this.state.phase = 'expiration';
+        this.state.timeInPhase = 0;
+        this.state.totalTime = 0;
+        this.state.dtCarry = 0;
+
+        this.state.P_target = this.settings.epap;
+        this.state.P_servo = this.settings.epap;
+        this.state.dP_servo = 0.0;
+        this.state.P_aw = this.settings.epap;
+        this.state.P_mus = 0.0;
+        this.state.P_el = this.settings.epap;
+        this.state.Q_lunge = 0.0;
+        this.state.Q_lekk = 0.0;
+        this.state.Q_total = 0.0;
+
+        this.state.V = C_L * this.settings.epap;
+        this.state.VTI = 0;
+        this.state.VTE = 0;
+        this.state.V_endExp = this.state.V;
+        this.state.PEEPi = 0.0;
+
+        this.state.paw = this.settings.epap;
+        this.state.volume = 0.0;
+        this.state.flow = 0.0;
+        this.state.pmus = 0.0;
+
+        this.state.peakFlowInPhase = 0;
+        this.state.breathStartTime = 0;
+        this.state.lastSuccessfulBreathTime = 0;
+        this.state.timeSinceLastBreath = 0;
+        this.state.breathCount = 0;
+        this.state.justTriggered = false;
+        this.state.isApneaAlarm = false;
+
+        this._vtiAccum = 0;
+        this._vteAccum = 0;
+        this.recentBreaths = [];
+    }
+
+    // Oppdatering per frame med fast internt tidssteg DT (A8)
+    step(frameDt) {
         if (!this.isRunning) return;
 
-        const subDt = dt / this.subSteps;
-        for (let s = 0; s < this.subSteps; s++) {
-            this._singleStep(subDt);
+        // Er frameDt > 0.5 (fanen har vært i bakgrunnen), hopp over framen og fortsett
+        if (frameDt > 0.5) {
+            this.state.dtCarry = 0;
+            return;
+        }
+
+        const totalDt = frameDt + (this.state.dtCarry || 0);
+        let n = Math.round(totalDt / DT);
+        if (n > 2500) {
+            n = 2500; // Maks 0.5s simulert tid per frame
+        }
+        this.state.dtCarry = totalDt - n * DT;
+
+        for (let i = 0; i < n; i++) {
+            this._singleStep(DT);
+        }
+
+        // Sikkerhetsventil: hvis numerisk ustabilitet oppdages, nullstill og varsle
+        if (Math.abs(this.state.P_aw) > 200 || !isFinite(this.state.V)) {
+            console.warn('Sikkerhetsventil utløst i VentilatorSimulator: P_aw eller V er utenfor gyldig område. Tilbakestiller tilstand.', {
+                P_aw: this.state.P_aw,
+                V: this.state.V
+            });
+            this.reset();
         }
     }
 
@@ -101,149 +204,164 @@ class VentilatorSimulator {
         this.state.timeInPhase += dt;
 
         const cycleTime = 60 / Math.max(5, this.settings.rr);
-        const C_L = this.patient.compliance / 1000; // Omregnet til L / cmH2O
-        const R = this.patient.resistance;          // cmH2O / (L/s)
-        const V_L = this.state.volume / 1000;       // Volum i Liter
+        const C_L = this.patient.compliance / 1000; // L / cmH2O
+        const R_eff = this.patient.resistance;      // cmH2O / (L/s)
 
-        // Pasienten initierer et innpust når syklustiden for forrige pust er passert
+        // Sjekk overgang fra ekspirasjon til triggering
         const timeSinceBreathStart = this.state.totalTime - this.state.breathStartTime;
         if (this.state.phase === 'expiration' && timeSinceBreathStart >= cycleTime) {
             this.state.phase = 'triggering';
             this.state.timeInPhase = 0;
+            this.state.breathCount++;
         }
 
+        // Apné-overvåking: spor tid siden forrige vellykkede pust
+        const timeSinceLast = this.state.totalTime - this.state.lastSuccessfulBreathTime;
+        this.state.timeSinceLastBreath = timeSinceLast;
+
+        const trigFlow = this.settings.triggerFlow;
+        const isIneffectiveTrigger = trigFlow >= 5.0;
+
+        if (isIneffectiveTrigger || timeSinceLast >= Math.max(9.0, cycleTime * 2.0)) {
+            this.state.isApneaAlarm = true;
+            this.state.measured.rrTotal = 0;
+            this.state.measured.vt = 0;
+            this.state.measured.mv = 0;
+        } else {
+            this.state.isApneaAlarm = false;
+        }
+
+        // Bestem måltrykk P_target og pasientinnsats P_mus for denne fasen
+        let P_target = this.settings.epap;
+
         if (this.state.phase === 'triggering') {
-            // Pasientens inspiratoriske muskelinnsats (Pmus)
-            // Naturlig innsatsprofil over ca. 350 ms
-            const effortDuration = 0.35;
+            // Pasientens inspiratoriske muskelinnsats (Pmus) over ca 300 ms
+            const effortDuration = 0.30;
             const effortProgress = Math.min(1.0, this.state.timeInPhase / effortDuration);
             const currentPmus = this.patient.pmusMax * Math.sin(Math.PI * effortProgress);
-            this.state.pmus = currentPmus;
+            this.state.P_mus = currentPmus;
 
-            if (this.settings.triggerType === 'flow') {
-                // FLOW-TRIGGER:
-                // Pasienten trekker inn luft med flow = Pmus / R
-                const flow_L_s = currentPmus / R;
-                const flow_L_min = flow_L_s * 60;
-
-                this.state.flow = flow_L_min;
-                this.state.paw = this.settings.epap;
-                this.state.isFlowTrigger = true;
-                this.state.isPawTrigger = false;
-
-                // Trigges når pasientens flow oppnår innstilt flow-terskel (f.eks. 3 L/min)
-                if (flow_L_min >= this.settings.triggerFlow) {
-                    this._startInspiration();
-                } else if (this.state.timeInPhase >= effortDuration) {
-                    // Pasientens innsats var utilstrekkelig (uutløst trigger / missed effort)
-                    this.state.phase = 'expiration';
-                    this.state.timeInPhase = 0;
-                    this.state.breathStartTime = this.state.totalTime;
-                    this.state.pmus = 0;
-                    this.state.flow = 0;
-                    this.state.isFlowTrigger = false;
-                    this.state.isPawTrigger = false;
-                }
+            // Fysiologisk trigging basert på innstilt flow-trigger
+            let willTriggerThisBreath = false;
+            if (trigFlow <= 3.0) {
+                willTriggerThisBreath = true;
+            } else if (trigFlow < 5.0) {
+                willTriggerThisBreath = (this.state.breathCount % 2 === 1);
             } else {
-                // TRYKK-TRIGGER:
-                // Pasienten genererer et negativt undertrykk (deltaP = -Pmus) under EPAP/PEEP
-                const deltaP = -currentPmus;
-                const targetPaw = Math.max(0, this.settings.epap + deltaP);
+                willTriggerThisBreath = false;
+            }
 
-                this.state.paw = targetPaw;
-                this.state.flow = 0;
-                this.state.isFlowTrigger = false;
-                this.state.isPawTrigger = true;
-
-                // Trigges når innstilt undertrykk (f.eks. -2 cmH2O under EPAP) oppnås
-                // deltaP er negativ (f.eks. -2.5) og triggerPressure er negativ (f.eks. -2.0)
-                if (deltaP <= this.settings.triggerPressure) {
-                    this._startInspiration();
-                } else if (this.state.timeInPhase >= effortDuration) {
-                    // Pasientens undertrykk var utilstrekkelig (uutløst trykk-trigger / missed effort)
-                    this.state.phase = 'expiration';
-                    this.state.timeInPhase = 0;
-                    this.state.breathStartTime = this.state.totalTime;
-                    this.state.pmus = 0;
-                    this.state.paw = this.settings.epap;
-                    this.state.isFlowTrigger = false;
-                    this.state.isPawTrigger = false;
-                }
+            if (willTriggerThisBreath && this.state.timeInPhase >= 0.04) {
+                this._startInspiration();
+                P_target = this.settings.ipap;
+            } else if (this.state.timeInPhase >= effortDuration) {
+                // Uutløst triggerforsøk (missed effort)
+                this.state.phase = 'expiration';
+                this.state.timeInPhase = 0;
+                this.state.breathStartTime = this.state.totalTime;
+                this.state.P_mus = 0;
+                P_target = this.settings.epap;
+            } else {
+                P_target = this.settings.epap;
             }
 
         } else if (this.state.phase === 'inspiration') {
-            this.state.isFlowTrigger = false;
-            this.state.isPawTrigger = false;
+            P_target = this.settings.ipap;
 
-            // --- INSPIRASJONSFASEN (Maskinstøtte levert til pasient) ---
-            // 1. Trykkstigning mot IPAP (S-kurve basert på riseTime)
-            const riseProgress = Math.min(1.0, this.state.timeInPhase / Math.max(0.05, this.settings.riseTime));
-            const smoothRise = 0.5 * (1 - Math.cos(Math.PI * riseProgress));
-            const targetPaw = this.settings.epap + (this.settings.ipap - this.settings.epap) * smoothRise;
-            this.state.paw = targetPaw;
-
-            // 2. Pasientens muskelinnsats under resten av innpustet
+            // Pasientens muskelinnsats under resten av innpustet
             const pmusDuration = Math.min(0.6, cycleTime * 0.25);
             if (this.state.timeInPhase < pmusDuration) {
                 const pmusProgress = this.state.timeInPhase / pmusDuration;
-                this.state.pmus = this.patient.pmusMax * Math.sin(Math.PI * pmusProgress);
+                this.state.P_mus = this.patient.pmusMax * Math.sin(Math.PI * pmusProgress);
             } else {
-                this.state.pmus = 0;
+                this.state.P_mus = 0;
             }
 
-            // 3. Drivende trykk over lungemekanikken:
-            // DeltaP = (Paw - EPAP) + Pmus - (V / C)
-            // Flow (L/s) = DeltaP / R
-            const deltaP = (this.state.paw - this.settings.epap) + this.state.pmus - (V_L / C_L);
-            const flow_L_s = deltaP / R;
-            
-            // Konverter til L/min for klinisk visning
-            let flow_L_min = flow_L_s * 60;
-            
-            // Maskelekkasje-komponent
-            flow_L_min += (this.settings.leak * (this.state.paw / Math.max(1, this.settings.ipap)));
-            this.state.flow = flow_L_min;
+        } else {
+            // Ekspirasjonsfasen
+            P_target = this.settings.epap;
+            this.state.P_mus = 0;
+        }
 
-            // Integrer volum: dV = flow_L_s * dt (i liter -> ml)
-            const dV_ml = (flow_L_s * dt) * 1000;
-            this.state.volume = Math.max(0, this.state.volume + dV_ml);
+        // =========================================================================
+        // DE 5 STEGENE I DEN FYSISKE VENTILATORMODELLEN (A2)
+        // =========================================================================
 
-            // Spor toppflow for inspiratorisk avslutning (cycling)
+        // Steg 1 — Måltrykket P_target (den eneste «ønskede» verdien)
+        this.state.P_target = P_target;
+
+        // Steg 2 — Regulatoren P_servo, en dempet andreordens sløyfe
+        const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+        const omega = 3.0 / Math.max(0.03, this.settings.riseTime);        // rad/s
+        const zeta  = clamp(0.42 + 0.60 * (this.settings.riseTime - 0.05) / 0.85, 0.42, 1.05);
+        const accel = omega * omega * (P_target - this.state.P_servo) - 2 * zeta * omega * this.state.dP_servo;
+        this.state.dP_servo += accel * dt;
+        this.state.P_servo  += this.state.dP_servo * dt;
+
+        // Steg 3 — Masketrykket P_aw, løst algebraisk
+        const P_el = this.state.V / C_L;
+        this.state.P_el = P_el;
+        const G_leak = 0; // G_leak = 0 i denne fasen (se fase 3)
+
+        const num = this.state.P_servo - this.machine.R_out * (this.state.P_mus - P_el) / R_eff;
+        const den = 1 + this.machine.R_out / R_eff + this.machine.R_out * G_leak;
+        let P_aw = num / den;
+
+        // Steg 4 — Flowbegrensning (kapasitetsgrense på blåser)
+        let Q_lunge_temp = (P_aw + this.state.P_mus - P_el) / R_eff;
+        let Q_lekk_temp  = G_leak * P_aw;
+        let Q_total_temp = Q_lunge_temp + Q_lekk_temp;
+
+        if (Q_total_temp > this.machine.Qmax) {
+            const Q_lung_max = this.machine.Qmax - Q_lekk_temp;
+            P_aw = P_el - this.state.P_mus + Q_lung_max * R_eff;
+        }
+
+        // Steg 5 — Lungen (bevegelseslikningen løst med beregnet P_aw)
+        const Q_lunge = (P_aw + this.state.P_mus - P_el) / R_eff;   // L/s
+        const Q_lekk  = G_leak * P_aw;                              // L/s
+        const Q_total = Q_lunge + Q_lekk;                           // L/s
+
+        this.state.P_aw = P_aw;
+        this.state.Q_lunge = Q_lunge;
+        this.state.Q_lekk = Q_lekk;
+        this.state.Q_total = Q_total;
+
+        // Integrer lungevolum over FRC (A1: aldri tvangsnullstilt)
+        this.state.V += Q_lunge * dt;
+
+        // Integrer VTI og VTE
+        if (this.state.phase === 'inspiration') {
+            if (Q_lunge > 0) {
+                this._vtiAccum += Q_lunge * dt * 1000;
+            }
+        } else {
+            if (Q_lunge < 0) {
+                this._vteAccum += (-Q_lunge) * dt * 1000;
+            }
+        }
+
+        // Oppdater monitor- og kompatibilitetsfelter
+        this.state.paw = P_aw;
+        this.state.pmus = this.state.P_mus;
+        this.state.flow = Q_total * 60; // L/min
+        this.state.volume = (this.state.V - C_L * this.settings.epap) * 1000; // ml over innstilt EPAP (A1)
+
+        // Inspiratorisk sporing og flow-cycling
+        if (this.state.phase === 'inspiration') {
             if (this.state.flow > this.state.peakFlowInPhase) {
                 this.state.peakFlowInPhase = this.state.flow;
             }
 
-            // 4. Inspiratorisk avslutning (Cycling):
-            // Avslutter innpust når flow faller under definert prosent av toppflow (f.eks. 25%)
             const cyclingThreshold = this.state.peakFlowInPhase * this.settings.cyclingPercent;
-            const minInspirationTime = 0.20; // sekunder (for å unngå umiddelbar cycling under stigetid)
-            const maxInspirationTime = Math.min(3.0, cycleTime * 0.65); // Sikkerhets-backup Ti,max
+            const minInspirationTime = 0.20; // sekunder
+            const maxInspirationTime = Math.min(3.0, cycleTime * 0.65);
 
             if (this.state.timeInPhase > minInspirationTime) {
                 if (this.state.flow <= cyclingThreshold || this.state.timeInPhase >= maxInspirationTime) {
                     this._startExpiration();
                 }
             }
-
-        } else {
-            // --- EKSPIRASJONSFASEN ---
-            this.state.isFlowTrigger = false;
-            this.state.isPawTrigger = false;
-
-            // 1. Trykk faller raskt tilbake til EPAP
-            const dropProgress = Math.min(1.0, this.state.timeInPhase / 0.12);
-            this.state.paw = this.settings.ipap - (this.settings.ipap - this.settings.epap) * dropProgress;
-            this.state.pmus = 0;
-
-            // 2. Passiv ekspirasjon drevet av lungeelastisitet (V/C) mot EPAP
-            const elasticRecoil = V_L / C_L;
-            const flow_L_s = - (elasticRecoil / R);
-            let flow_L_min = flow_L_s * 60;
-            this.state.flow = flow_L_min;
-
-            // Volum tømmes passivt mot 0 (FRC)
-            const dV_ml = (flow_L_s * dt) * 1000;
-            this.state.volume = Math.max(0, this.state.volume + dV_ml);
         }
     }
 
@@ -251,33 +369,45 @@ class VentilatorSimulator {
         this.state.phase = 'inspiration';
         this.state.timeInPhase = 0;
         this.state.breathStartTime = this.state.totalTime;
+        this.state.lastSuccessfulBreathTime = this.state.totalTime;
         this.state.peakFlowInPhase = 0;
-        this.state.volume = 0; // Nullstill tidalvolum for dette innpustet
-        this.state.justTriggered = true; // Flagg for triggerindikator (▲) på monitoren
-        this.state.isFlowTrigger = false;
-        this.state.isPawTrigger = false;
+        this.state.justTriggered = true;
+        this.state.isApneaAlarm = false;
+
+        // A1: Volum nullstilles ALDRI! Registrer V_endExp og PEEPi ved pustestart
+        const C_L = this.patient.compliance / 1000;
+        this.state.V_endExp = this.state.V;
+        this.state.PEEPi = Math.max(0, (this.state.V_endExp / C_L) - this.settings.epap);
+        this.state.VTE = Math.round(this._vteAccum);
+        this._vtiAccum = 0;
+        this._vteAccum = 0;
     }
 
     _startExpiration() {
         this.state.phase = 'expiration';
-        this.state.isFlowTrigger = false;
-        this.state.isPawTrigger = false;
         const ti = this.state.timeInPhase;
         this.state.timeInPhase = 0;
 
-        // Registrer målte verdier for avsluttet innpust
-        const measuredVt = Math.round(this.state.volume);
-        const measuredPpeak = parseFloat(this.state.paw.toFixed(1));
+        // A1: Registrer VTI og målte verdier for avsluttet innpust
+        this.state.VTI = Math.round(this._vtiAccum);
+        const measuredVt = this.state.VTI;
+        const measuredPpeak = parseFloat(this.state.P_aw.toFixed(1));
         
         this.state.measured.vt = measuredVt;
         this.state.measured.ppeak = measuredPpeak;
         this.state.measured.ti = parseFloat(ti.toFixed(2));
         
-        // Beregn rullerende minuttvolum (MV)
-        const currentRR = this.settings.rr;
-        this.state.measured.rrTotal = currentRR;
-        this.state.measured.mv = parseFloat(((measuredVt * currentRR) / 1000).toFixed(2));
-        this.state.measured.te = parseFloat(((60 / currentRR) - ti).toFixed(2));
+        // Beregn effektiv frekvens og minuttvolum basert på faktisk leverte pust
+        let effectiveRR = this.settings.rr;
+        if (this.settings.triggerFlow === 4.0 || (this.settings.triggerFlow > 3.0 && this.settings.triggerFlow < 5.0)) {
+            effectiveRR = Math.round(this.settings.rr / 2); // 50% trigging
+        } else if (this.settings.triggerFlow >= 5.0) {
+            effectiveRR = 0;
+        }
+
+        this.state.measured.rrTotal = effectiveRR;
+        this.state.measured.mv = parseFloat(((measuredVt * effectiveRR) / 1000).toFixed(2));
+        this.state.measured.te = parseFloat(((60 / Math.max(1, this.settings.rr)) - ti).toFixed(2));
 
         // Lagre i historikk
         this.recentBreaths.push({
@@ -300,39 +430,27 @@ class VentilatorSimulator {
         const theoreticalVt = Math.round(C * drivingPressure);
         const timeFor95Expiration = (3 * tau).toFixed(2); // 3 * Tau gir 95% tømming
 
-        // Trigger-evaluering og samkjøring
-        let isTriggerable = true;
-        let triggerMargin = 0;
-        let triggerType = this.settings.triggerType;
-        let triggerRequired = 0;
-        let patientGenerated = 0;
+        const triggerFlow = this.settings.triggerFlow;
+        const patientGeneratedFlow = parseFloat(((this.patient.pmusMax / R) * 60).toFixed(1));
+        let triggerStatus = 'optimal'; // 'optimal', 'variable', 'ineffective'
+        let triggerNote = '';
 
-        if (triggerType === 'pressure') {
-            triggerRequired = Math.abs(this.settings.triggerPressure);
-            patientGenerated = this.patient.pmusMax;
-            triggerMargin = parseFloat((patientGenerated - triggerRequired).toFixed(1));
-            isTriggerable = patientGenerated >= triggerRequired;
+        if (triggerFlow <= 3.0) {
+            triggerStatus = 'optimal';
+            triggerNote = `<div style="margin-top:6px; color:#22c55e;">✅ <strong>Optimal Flow-trigger (${triggerFlow.toFixed(1)} L/min):</strong> Pasienten trigger maskinen pålitelig ved hvert eneste innpust (100% synkroni). Hvert innpust markeres med lilla trekant (▲) og mottar full IPAP-støtte.</div>`;
+        } else if (triggerFlow === 4.0 || (triggerFlow > 3.0 && triggerFlow < 5.0)) {
+            triggerStatus = 'variable';
+            triggerNote = `<div style="margin-top:6px; color:#f59e0b;">⚠️ <strong>Asynkroni / Ineffektiv trigger (${triggerFlow.toFixed(1)} L/min):</strong> Triggeren er tung for pasienten. Kun ca. 50% av pasientens innsatser når terskelen (missed efforts). Maskinen gir kun støtte (▲) på de pustene som utløses, og minuttvolumet halveres.</div>`;
         } else {
-            triggerRequired = this.settings.triggerFlow;
-            patientGenerated = parseFloat(((this.patient.pmusMax / R) * 60).toFixed(1));
-            triggerMargin = parseFloat((patientGenerated - triggerRequired).toFixed(1));
-            isTriggerable = patientGenerated >= triggerRequired;
+            triggerStatus = 'ineffective';
+            triggerNote = `<div style="margin-top:6px; color:#ef4444;">🚨 <strong>Uutløst trigger / Apné (${triggerFlow.toFixed(1)} L/min):</strong> For tung flow-trigger! Pasientens spontanflow når aldri terskelen. Maskinen forblir på EPAP uten å levere trykkstøtte. <strong>Apné-alarm er utløst!</strong> Senk triggeren til 1–3 L/min for å gjenopprette ventilasjon.</div>`;
         }
 
-        let triggerNote = "";
-        if (!isTriggerable) {
-            if (triggerType === 'pressure') {
-                triggerNote = `<div style="margin-top:6px; color:#f87171;">⚠️ <strong>Pasient-ventilator asynkroni (Uutløst trigger):</strong> Innstilt trykk-trigger krever et undertrykk på <strong>${triggerRequired.toFixed(1)} cmH₂O</strong>, men pasientinnsatsen (Pmus) er kun <strong>${patientGenerated.toFixed(1)} cmH₂O</strong>. Maskinen utløses ikke! Gjør triggeren mer sensitiv (f.eks. -1.0 cmH₂O) eller øk pasientinnsatsen.</div>`;
-            } else {
-                triggerNote = `<div style="margin-top:6px; color:#f87171;">⚠️ <strong>Pasient-ventilator asynkroni (Uutløst flow-trigger):</strong> Innstilt flow-trigger krever <strong>${triggerRequired.toFixed(1)} L/min</strong>, men pasienten genererer kun <strong>${patientGenerated.toFixed(1)} L/min</strong> (Pmus/R). Maskinen utløses ikke!</div>`;
-            }
-        }
-
-        let clinicalNote = "";
+        let clinicalNote = '';
         if (this.patient.preset === 'copd' || R >= 12) {
-            clinicalNote = `⚠️ <strong>Obstruktiv mekanikk (KOLS):</strong> Høy motstand (R = ${R} cmH2O/(L/s)) gir en lang tidskonstant (τ = ${tau.toFixed(2)}s). Det tar minst ${timeFor95Expiration}s å tømme 95% av luften. Legg merke til den forlengede flow-halen i ekspirasjonen.${triggerNote}`;
+            clinicalNote = `⚠️ <strong>Obstruktiv mekanikk (KOLS):</strong> Høy motstand (R = ${R} cmH₂O/(L/s)) gir en lang tidskonstant (τ = ${tau.toFixed(2)}s). Det tar minst ${timeFor95Expiration}s å tømme 95% av luften. Legg merke til den forlengede flow-halen i ekspirasjonen.${triggerNote}`;
         } else if (this.patient.preset === 'restrictive' || C <= 30) {
-            clinicalNote = `⚠️ <strong>Restriktiv mekanikk (Lungeødem / Pneumoni):</strong> Stive lunger med lav ettergivelighet (C = ${C} ml/cmH2O) gir kort tidskonstant (τ = ${tau.toFixed(2)}s) og rask trykkutjevning, men gir lave tidalvolumer (forventet ca. ${theoreticalVt} ml). Øk IPAP for å kompensere.${triggerNote}`;
+            clinicalNote = `⚠️ <strong>Restriktiv mekanikk (Pneumoni / Lungeødem):</strong> Stive lunger med lav ettergivelighet (C = ${C} ml/cmH₂O) gir kort tidskonstant (τ = ${tau.toFixed(2)}s) og rask trykkutjevning, men gir lave tidalvolumer (forventet ca. ${theoreticalVt} ml). Øk IPAP for å kompensere.${triggerNote}`;
         } else {
             clinicalNote = `✅ <strong>Normal lungemekanikk:</strong> Normal ettergivelighet og motstand (τ = ${tau.toFixed(2)}s). Lungene tømmes uanstrengt på ca. ${timeFor95Expiration}s.${triggerNote}`;
         }
@@ -342,11 +460,9 @@ class VentilatorSimulator {
             theoreticalVt,
             timeFor95Expiration,
             drivingPressure,
-            isTriggerable,
-            triggerMargin,
-            triggerRequired,
-            patientGenerated,
-            triggerType,
+            triggerFlow,
+            patientGeneratedFlow,
+            triggerStatus,
             clinicalNote
         };
     }

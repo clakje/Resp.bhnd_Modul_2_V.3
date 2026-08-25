@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Interaktiv NIV Respirator Simulator for opplæring i non-invasiv ventilasjon, trykkstøtte, lungemekanikk og kurveforståelse.">
+    <meta name="description" content="Interaktiv NIV Respirator Simulator for opplæring i non-invasiv ventilasjon, trykkstøtte, lungemekanikk og kurveforståelse i Hamilton-stil.">
     <title>NIV Respirator Simulator - Sandkasse</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -15,13 +15,13 @@
             <span class="logo-badge">NIV-SIM</span>
             <div>
                 <h1 class="brand-title">Mekanisk Ventilator Simulator</h1>
-                <div class="brand-subtitle">Non-Invasiv Ventilasjon (NIV) • Sandkasse</div>
+                <div class="brand-subtitle">Non-Invasiv Ventilasjon (NIV) • Hamilton-stil Sandkasse</div>
             </div>
         </div>
 
         <div class="status-badge-container">
             <div class="mode-badge" id="modeBadge">
-                <span>Modus: Spontan / Trykkstøtte (PSV)</span>
+                <span>Modus: Spontan / Trykkstøtte (PSV / NIV-ST)</span>
             </div>
         </div>
 
@@ -41,9 +41,20 @@
         <!-- Seksjon 1: Monitoren (Canvas kurver + Måleverdier) -->
         <section class="monitor-row" aria-label="Ventilatormonitor">
             
-            <!-- Canvas med de 3 kurvene -->
-            <div class="canvas-container">
-                <canvas id="waveformCanvas"></canvas>
+            <div class="monitor-left-col">
+                <!-- Medisinsk Alarm-banner (Visuelt varsel ved Apné / Uutløst trigger) -->
+                <div id="alarmBanner" class="alarm-banner hidden" role="alert">
+                    <span class="alarm-icon">🚨</span>
+                    <div class="alarm-text-block">
+                        <span class="alarm-title">APNÉ-ALARM: INGEN PASIENTINNSATS REGISTRERT</span>
+                        <span class="alarm-msg">Tap av trigger / ineffektiv flow-trigger. Pasienten ventileres ikke! Senk flow-trigger til 1–3 L/min.</span>
+                    </div>
+                </div>
+
+                <!-- Canvas med de 3 kurvene -->
+                <div class="canvas-container">
+                    <canvas id="waveformCanvas"></canvas>
+                </div>
             </div>
 
             <!-- Sidestilt måleverdi-display -->
@@ -51,7 +62,7 @@
                 <div class="readout-group-title">Målte pasientverdier</div>
 
                 <!-- Topptrykk Ppeak -->
-                <div class="metric-card pressure-card">
+                <div class="metric-card pressure-card" id="cardMetricPpeak">
                     <div class="metric-label">
                         <span>P<sub>peak</sub> (Topptrykk)</span>
                         <span class="metric-unit">cmH₂O</span>
@@ -60,7 +71,7 @@
                 </div>
 
                 <!-- Tidalvolum Vt -->
-                <div class="metric-card volume-card">
+                <div class="metric-card volume-card" id="cardMetricVt">
                     <div class="metric-label">
                         <span>V<sub>t</sub> (Tidalvolum)</span>
                         <span class="metric-unit">ml</span>
@@ -69,7 +80,7 @@
                 </div>
 
                 <!-- Minuttvolum MV -->
-                <div class="metric-card mv-card">
+                <div class="metric-card mv-card" id="cardMetricMv">
                     <div class="metric-label">
                         <span>MV (Minuttvolum)</span>
                         <span class="metric-unit">L/min</span>
@@ -78,7 +89,7 @@
                 </div>
 
                 <!-- Total frekvens RR -->
-                <div class="metric-card rr-card">
+                <div class="metric-card rr-card" id="cardMetricRR">
                     <div class="metric-label">
                         <span>RR<sub>tot</sub> (Frekvens)</span>
                         <span class="metric-unit">/min</span>
@@ -142,7 +153,7 @@
                             <div class="control-header">
                                 <div>
                                     <div class="control-label">IPAP (Inspiratorisk trykk)</div>
-                                    <div class="control-sublabel">Trykkstøtte under innpust</div>
+                                    <div class="control-sublabel">Trykkstøtte levert under innpust</div>
                                 </div>
                                 <span class="control-value-pill" id="badgeIpap">14 cmH₂O</span>
                             </div>
@@ -162,7 +173,7 @@
                             <div class="control-header">
                                 <div>
                                     <div class="control-label">EPAP / PEEP (Ekspiratorisk trykk)</div>
-                                    <div class="control-sublabel">Mottrykk for å holde luftveier åpne</div>
+                                    <div class="control-sublabel">Mottrykk for å holde luftveier og alveoler åpne</div>
                                 </div>
                                 <span class="control-value-pill" id="badgeEpap">5 cmH₂O</span>
                             </div>
@@ -182,7 +193,7 @@
                             <div class="control-header">
                                 <div>
                                     <div class="control-label">Respirasjonsfrekvens (RR)</div>
-                                    <div class="control-sublabel">Pasientens spontanfrekvens</div>
+                                    <div class="control-sublabel">Pasientens spontane pustefrekvens</div>
                                 </div>
                                 <span class="control-value-pill" id="badgeRR">15 /min</span>
                             </div>
@@ -217,61 +228,52 @@
                             </div>
                         </div>
 
-                        <!-- Trigger (Type & Følsomhet) -->
+                        <!-- Flow-Trigger -->
                         <div class="control-card" id="cardTrigger">
                             <div class="control-header">
                                 <div>
-                                    <div class="control-label">Inspirasjonstrigger</div>
-                                    <div class="control-sublabel" id="triggerSublabel">Flow-trigger (1–5 L/min)</div>
+                                    <div class="control-label">Flow-trigger (Inspirasjonstrigger)</div>
+                                    <div class="control-sublabel" id="triggerSublabel">Påkrevd pasientflow for å utløse støtte (1–5 L/min)</div>
                                 </div>
                                 <span class="control-value-pill" id="badgeTrigger" style="color: var(--color-flow-trigger); border-color: rgba(217, 70, 239, 0.4);">3.0 L/min</span>
                             </div>
 
-                            <!-- Trigger Type Velger -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0 10px 0;">
-                                <button type="button" class="trigger-type-btn active" id="btnTrigFlow" data-type="flow">
-                                    🟢 Flow-trigger (V̇)
-                                </button>
-                                <button type="button" class="trigger-type-btn" id="btnTrigPressure" data-type="pressure">
-                                    🟡 Trykk-trigger (P)
-                                </button>
-                            </div>
-
-                            <div class="slider-wrapper">
+                            <div class="slider-wrapper" style="margin-top: 8px;">
                                 <button class="step-btn" id="btnTrigStepDown" data-target="sliderTrigger" data-step="-0.5">-</button>
                                 <input type="range" id="sliderTrigger" min="1" max="5" step="0.5" value="3">
                                 <button class="step-btn" id="btnTrigStepUp" data-target="sliderTrigger" data-step="0.5">+</button>
                             </div>
                             <div class="slider-limits">
-                                <span id="triggerLimitMin">1.0 L/min (Mest sensitiv)</span>
-                                <span id="triggerLimitMax">5.0 L/min (Mindre sensitiv)</span>
+                                <span id="triggerLimitMin">1.0 L/min (100% utløst ▲)</span>
+                                <span id="triggerLimitMid" style="color: var(--color-warning);">4.0 L/min (Asynkroni)</span>
+                                <span id="triggerLimitMax">5.0 L/min (Apné / 0%)</span>
                             </div>
 
-                            <!-- Trigger-samkjøringspanel (Sanntidskorrelasjon i cmH2O / Flow) -->
+                            <!-- Trigger-samkjøringspanel (Klinisk veiledning) -->
                             <div class="trigger-sync-box" id="triggerSyncBox">
                                 <div class="trigger-sync-header">
-                                    <span class="trigger-sync-title">⚡ Pasient-samkjøring:</span>
-                                    <span class="trigger-sync-status-badge status-ok" id="triggerSyncBadge">✅ Utløses</span>
+                                    <span class="trigger-sync-title">⚡ Pasient-maskin samspill:</span>
+                                    <span class="trigger-sync-status-badge status-ok" id="triggerSyncBadge">✅ 100% Utløst</span>
                                 </div>
                                 <div class="trigger-sync-body">
                                     <div class="trigger-sync-comparison">
                                         <div class="sync-item">
                                             <span class="sync-label">Trigger krever:</span>
-                                            <span class="sync-val" id="syncTriggerReq">2.0 cmH₂O</span>
+                                            <span class="sync-val" id="syncTriggerReq">3.0 L/min</span>
                                         </div>
                                         <div class="sync-vs">vs</div>
                                         <div class="sync-item">
-                                            <span class="sync-label">Pasient (P<sub>mus</sub>):</span>
-                                            <span class="sync-val" id="syncPatientEffort">2.5 cmH₂O</span>
+                                            <span class="sync-label">Pasientflow:</span>
+                                            <span class="sync-val" id="syncPatientEffort">30.0 L/min</span>
                                         </div>
                                     </div>
                                     <!-- Visuell sammenligningsmåler -->
-                                    <div class="trigger-gauge-track" title="Pasientinnsats (søyle) vs. Triggerkrav (gul markør)">
-                                        <div class="trigger-gauge-fill" id="triggerGaugeFill" style="width: 62%;"></div>
-                                        <div class="trigger-gauge-threshold" id="triggerGaugeThreshold" style="left: 50%;"></div>
+                                    <div class="trigger-gauge-track" title="Pasientinnsats vs. Triggerkrav">
+                                        <div class="trigger-gauge-fill" id="triggerGaugeFill" style="width: 60%;"></div>
+                                        <div class="trigger-gauge-threshold" id="triggerGaugeThreshold" style="left: 40%;"></div>
                                     </div>
                                     <div class="trigger-sync-message" id="triggerSyncMessage">
-                                        Pasientens innsats er stor nok til å utløse innpust (Margin: +0.5 cmH₂O).
+                                        Pasienten utløser innpust pålitelig (1–3 L/min). Lilla trekant (▲) vises for hvert pust.
                                     </div>
                                 </div>
                             </div>
@@ -329,7 +331,7 @@
                             <div class="control-header">
                                 <div>
                                     <div class="control-label">Pasientinnsats (P<sub>mus</sub>)</div>
-                                    <div class="control-sublabel">Egen muskelkraft ved innpust</div>
+                                    <div class="control-sublabel">Egen inspiratorisk muskelkraft</div>
                                 </div>
                                 <span class="control-value-pill" id="badgePmus">2.5 cmH₂O</span>
                             </div>
@@ -343,15 +345,14 @@
                                 <span>8 (Kraftig pustearbeid)</span>
                             </div>
 
-                            <!-- Samkjøringsindikator i pasientfanen -->
                             <div class="trigger-sync-box" id="pmusSyncBox">
                                 <div class="trigger-sync-header">
-                                    <span class="trigger-sync-title">⚡ Trigger-samkjøring:</span>
-                                    <span class="trigger-sync-status-badge status-ok" id="pmusSyncBadge">✅ Nok kraft</span>
+                                    <span class="trigger-sync-title">⚡ Pasientinnsats:</span>
+                                    <span class="trigger-sync-status-badge status-ok" id="pmusSyncBadge">✅ Aktiv innsats</span>
                                 </div>
                                 <div class="trigger-sync-body">
                                     <div class="trigger-sync-message" id="pmusSyncMessage">
-                                        Innstilt trykk-trigger krever 2.0 cmH₂O. Pasienten yter 2.5 cmH₂O og trigger maskinen.
+                                        Pasienten genererer inspiratorisk muskelkraft som driver initial flow mot flow-triggeren.
                                     </div>
                                 </div>
                             </div>
@@ -395,12 +396,13 @@
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderRiseTime" data-step="-25">-</button>
-                                <input type="range" id="sliderRiseTime" min="50" max="400" step="25" value="150">
+                                <input type="range" id="sliderRiseTime" min="50" max="900" step="25" value="150">
                                 <button class="step-btn" data-target="sliderRiseTime" data-step="25">+</button>
                             </div>
                             <div class="slider-limits">
                                 <span>50 ms (Bratt/rask)</span>
-                                <span>400 ms (Myk/langsom)</span>
+                                <span class="clinical-limit-marker" style="color: var(--color-warning); font-weight: 600;" title="Klinisk standard øvre grense (400 ms)">| 400 ms (Klinisk maks)</span>
+                                <span>900 ms (Svært myk/treg)</span>
                             </div>
                         </div>
 
@@ -436,9 +438,9 @@
                                 <div class="control-label" style="color: var(--color-pressure);">🟡 Trykk-kurven (Paw [cmH₂O])</div>
                             </div>
                             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-                                <p>• <strong>Bunnlinje (0 cmH₂O):</strong> Den heltrukne hvite grunnlinjen nederst i sporet angir atmosfærisk nulltrykk.</p>
-                                <p>• <strong>PEEP / EPAP-nivå:</strong> Den stiplede gule linjen markerer basetrykket pasienten hviler på.</p>
-                                <p>• <strong>Lilla trykk-trigger:</strong> Ved bruk av trykk-trigger oppstår en negativ bølge/undertrykk under EPAP som vises i <strong>lilla</strong>. Når innstilt trykkfall (-1 til -5 cmH₂O) oppnås, trigges maskinen og trykket stiger mot IPAP (gul).</p>
+                                <p>• <strong>Bunnlinje (0 cmH₂O):</strong> Den heltrukne hvite linjen nederst angir atmosfærisk nulltrykk.</p>
+                                <p>• <strong>PEEP / EPAP-nivå:</strong> Den stiplede gule linjen markerer basetrykket pasienten hviler på under utpust.</p>
+                                <p>• <strong>Trykkstøtte (IPAP):</strong> Når pasienten trigger maskinen, stiger trykket jevnt mot innstilt IPAP.</p>
                             </div>
                         </div>
 
@@ -447,20 +449,19 @@
                                 <div class="control-label" style="color: var(--color-flow);">🟢 Flow-kurven (Flow / Débit [L/min])</div>
                             </div>
                             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-                                <p>• <strong>Null-linje (0 L/min):</strong> Tydelig linje i midten av sporet som skiller luftstrøm inn og ut.</p>
-                                <p>• <strong>Lilla flow-trigger:</strong> Ved flow-trigger vises den initielle pasientinnsatsen (1–5 L/min) i <strong>lilla</strong> helt i starten av innpustet. Når innstilt terskel nås, overtar respiratoren og leverer full trykkstøtte (grønn).</p>
-                                <p>• <strong>Innpust (+ over linjen) & Utpust (- under linjen):</strong> Grønn kurve med arealvisning for inn- og utåndet gass.</p>
+                                <p>• <strong>Null-linje (0 L/min):</strong> Tydelig midtlinje som skiller luftstrøm inn og ut av pasienten.</p>
+                                <p>• <strong>Innpust (+ over 0-linjen):</strong> Positiv flow levert under trykkstøtte med grønt arealfyll.</p>
+                                <p>• <strong>Utpust (- under 0-linjen):</strong> Passiv tømming av lungene drevet av elastisk tilbakefjæring.</p>
                             </div>
                         </div>
 
                         <div class="control-card" style="border-left: 3px solid var(--color-volume);">
                             <div class="control-header">
-                                <div class="control-label" style="color: var(--color-volume);">🔵 Tidalvolum (V [ml])</div>
+                                <div class="control-label" style="color: var(--color-volume);">🔵 Tidalvolum & Triggermarkør (▲)</div>
                             </div>
                             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-                                <p>• <strong>Volumoppbygning:</strong> Viser det faktiske volumet som akkumuleres i lungene under inspirasjon.</p>
-                                <p>• <strong>Tømming til grunnlinje:</strong> Kurven returnerer jevnt til 0 ml grunnlinjen under ekspirasjon når lungene tømmes.</p>
-                                <p>• <strong>Triggermarkør (▲):</strong> Lilla trekanter langs tidslinjen markerer det eksakte øyeblikket et nytt innpust trigges.</p>
+                                <p>• <strong>Hamilton Triggermarkør (▲):</strong> Den lilla/magenta trekanten langs sporskillet markerer det eksakte øyeblikket et innpust utløses av pasienten.</p>
+                                <p>• <strong>Tidalvolum (V [ml]):</strong> Viser faktisk volum levert under inspirasjon og tømming mot null i ekspirasjon.</p>
                             </div>
                         </div>
 
@@ -491,8 +492,8 @@
     </main>
 
     <!-- Skript -->
-    <script src="simulator.js?v=1.7"></script>
-    <script src="renderer.js?v=1.7"></script>
-    <script src="app.js?v=1.7"></script>
+    <script src="simulator.js?v=2.0"></script>
+    <script src="renderer.js?v=2.0"></script>
+    <script src="app.js?v=2.0"></script>
 </body>
 </html>

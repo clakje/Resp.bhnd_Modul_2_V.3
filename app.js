@@ -1,5 +1,5 @@
 /**
- * app.js - Hovedapplikasjon og kontrollerkobling for NIV Simulatoren
+ * app.js - Hovedapplikasjon og kontrollerkobling for NIV Simulatoren (Hamilton-stil)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,11 +11,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastTimestamp = performance.now();
 
     // 2. DOM Referanser
+    // Alarm-banner
+    const alarmBanner = document.getElementById('alarmBanner');
+
     // Måleverdier
     const valPpeak = document.getElementById('valPpeak');
     const valVt = document.getElementById('valVt');
     const valMv = document.getElementById('valMv');
     const valRR = document.getElementById('valRR');
+
+    // Målekort (for styling ved alarm)
+    const cardMetricPpeak = document.getElementById('cardMetricPpeak');
+    const cardMetricVt = document.getElementById('cardMetricVt');
+    const cardMetricMv = document.getElementById('cardMetricMv');
+    const cardMetricRR = document.getElementById('cardMetricRR');
 
     // Innstilte visningsbokser
     const dispIpap = document.getElementById('dispIpap');
@@ -51,15 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
         leak: document.getElementById('badgeLeak')
     };
 
-    // Trigger Type Knapper & Tekster
-    const btnTrigFlow = document.getElementById('btnTrigFlow');
-    const btnTrigPressure = document.getElementById('btnTrigPressure');
-    const triggerSublabel = document.getElementById('triggerSublabel');
-    const triggerLimitMin = document.getElementById('triggerLimitMin');
-    const triggerLimitMax = document.getElementById('triggerLimitMax');
-    const btnTrigStepDown = document.getElementById('btnTrigStepDown');
-    const btnTrigStepUp = document.getElementById('btnTrigStepUp');
-
     // Trigger-samkjøringsfelter (UI/UX)
     const triggerSyncBox = document.getElementById('triggerSyncBox');
     const triggerSyncBadge = document.getElementById('triggerSyncBadge');
@@ -92,194 +92,110 @@ document.addEventListener('DOMContentLoaded', () => {
     const insightTheoVt = document.getElementById('insightTheoVt');
     const insightText = document.getElementById('insightText');
 
-    // Funksjon for sanntids samkjøring av pasientinnsats og triggerfølsomhet
+    // Funksjon for sanntids samkjøring av pasientflow og flow-trigger (1–5 L/min)
     function updateTriggerSyncUI() {
-        const triggerType = simulator.settings.triggerType;
+        const trigFlow = simulator.settings.triggerFlow;
         const pmus = simulator.patient.pmusMax;
         const R = simulator.patient.resistance;
+        const patientPeakFlow = parseFloat(((pmus / R) * 60).toFixed(1));
 
-        if (triggerType === 'pressure') {
-            const triggerReq = Math.abs(simulator.settings.triggerPressure);
-            const isTriggerable = pmus >= triggerReq;
-            const margin = parseFloat((pmus - triggerReq).toFixed(1));
+        if (syncTriggerReq) syncTriggerReq.textContent = `${trigFlow.toFixed(1)} L/min`;
+        if (syncPatientEffort) syncPatientEffort.textContent = `${patientPeakFlow.toFixed(1)} L/min`;
 
-            if (syncTriggerReq) syncTriggerReq.textContent = `${triggerReq.toFixed(1)} cmH₂O`;
-            if (syncPatientEffort) syncPatientEffort.textContent = `${pmus.toFixed(1)} cmH₂O`;
-
-            // Beregn skala for sammenligningsmåler
-            const maxVal = Math.max(6, triggerReq * 1.4, pmus * 1.2);
-            const threshPct = Math.min(95, Math.max(5, (triggerReq / maxVal) * 100));
-            const effortPct = Math.min(100, Math.max(0, (pmus / maxVal) * 100));
-
-            if (triggerGaugeThreshold) triggerGaugeThreshold.style.left = `${threshPct}%`;
-            if (triggerGaugeFill) triggerGaugeFill.style.width = `${effortPct}%`;
-
-            if (isTriggerable) {
-                if (triggerSyncBox) triggerSyncBox.classList.remove('warning-state');
-                if (pmusSyncBox) pmusSyncBox.classList.remove('warning-state');
-                if (triggerGaugeFill) triggerGaugeFill.classList.remove('warning-fill');
-
-                if (triggerSyncBadge) {
-                    triggerSyncBadge.className = 'trigger-sync-status-badge status-ok';
-                    triggerSyncBadge.textContent = '✅ Utløses';
-                }
-                if (pmusSyncBadge) {
-                    pmusSyncBadge.className = 'trigger-sync-status-badge status-ok';
-                    pmusSyncBadge.textContent = '✅ Nok kraft';
-                }
-
-                badges.trigger.classList.remove('badge-warning-pill');
-                badges.pmus.classList.remove('badge-warning-pill');
-
-                if (triggerSyncMessage) {
-                    triggerSyncMessage.innerHTML = `Pasientinnsats (<strong>${pmus.toFixed(1)} cmH₂O</strong>) overgår triggerkravet (<strong>${triggerReq.toFixed(1)} cmH₂O</strong>). <strong>Margin: +${margin} cmH₂O</strong>.`;
-                }
-                if (pmusSyncMessage) {
-                    pmusSyncMessage.innerHTML = `Innstilt trykk-trigger krever <strong>${triggerReq.toFixed(1)} cmH₂O</strong>. Pasienten yter <strong>${pmus.toFixed(1)} cmH₂O</strong> og utløser innpust (margin +${margin} cmH₂O).`;
-                }
-            } else {
-                if (triggerSyncBox) triggerSyncBox.classList.add('warning-state');
-                if (pmusSyncBox) pmusSyncBox.classList.add('warning-state');
-                if (triggerGaugeFill) triggerGaugeFill.classList.add('warning-fill');
-
-                if (triggerSyncBadge) {
-                    triggerSyncBadge.className = 'trigger-sync-status-badge status-warning';
-                    triggerSyncBadge.textContent = '⚠️ Uutløst';
-                }
-                if (pmusSyncBadge) {
-                    pmusSyncBadge.className = 'trigger-sync-status-badge status-warning';
-                    pmusSyncBadge.textContent = '⚠️ For svak';
-                }
-
-                badges.trigger.classList.add('badge-warning-pill');
-                badges.pmus.classList.add('badge-warning-pill');
-
-                const diff = Math.abs(margin).toFixed(1);
-                if (triggerSyncMessage) {
-                    triggerSyncMessage.innerHTML = `⚠️ <strong>For tung trigger!</strong> Krever <strong>${triggerReq.toFixed(1)} cmH₂O</strong> undertrykk, men pasienten yter kun <strong>${pmus.toFixed(1)} cmH₂O</strong> (mangler ${diff} cmH₂O). Innpust utløses IKKE!`;
-                }
-                if (pmusSyncMessage) {
-                    pmusSyncMessage.innerHTML = `⚠️ Pasientinnsats (<strong>${pmus.toFixed(1)} cmH₂O</strong>) er for svak for innstilt trigger (<strong>${triggerReq.toFixed(1)} cmH₂O</strong>). Øk Pmus eller gjør trigger lettere.`;
-                }
-            }
+        // Beregn skala for sammenligningsmåler
+        const maxVal = 6.0;
+        const threshPct = Math.min(95, Math.max(5, (trigFlow / maxVal) * 100));
+        
+        let effortPct = 80;
+        if (trigFlow <= 3.0) {
+            effortPct = 85;
+        } else if (trigFlow === 4.0 || (trigFlow > 3.0 && trigFlow < 5.0)) {
+            effortPct = threshPct; // Akkurat på grensen
         } else {
-            // Flow-trigger samkjøring
-            const triggerReq = simulator.settings.triggerFlow;
-            const patientFlow = parseFloat(((pmus / R) * 60).toFixed(1));
-            const isTriggerable = patientFlow >= triggerReq;
-            const margin = parseFloat((patientFlow - triggerReq).toFixed(1));
+            effortPct = 25; // Under terskel
+        }
 
-            if (syncTriggerReq) syncTriggerReq.textContent = `${triggerReq.toFixed(1)} L/min`;
-            if (syncPatientEffort) syncPatientEffort.textContent = `${patientFlow.toFixed(1)} L/min`;
+        if (triggerGaugeThreshold) triggerGaugeThreshold.style.left = `${threshPct}%`;
+        if (triggerGaugeFill) triggerGaugeFill.style.width = `${effortPct}%`;
 
-            const maxVal = Math.max(10, triggerReq * 1.4, patientFlow * 1.2);
-            const threshPct = Math.min(95, Math.max(5, (triggerReq / maxVal) * 100));
-            const effortPct = Math.min(100, Math.max(0, (patientFlow / maxVal) * 100));
+        // 1 til 3 L/min: 100% trigging med lilla trekant for hver pust
+        if (trigFlow <= 3.0) {
+            if (triggerSyncBox) triggerSyncBox.className = 'trigger-sync-box';
+            if (triggerGaugeFill) triggerGaugeFill.className = 'trigger-gauge-fill';
 
-            if (triggerGaugeThreshold) triggerGaugeThreshold.style.left = `${threshPct}%`;
-            if (triggerGaugeFill) triggerGaugeFill.style.width = `${effortPct}%`;
+            if (triggerSyncBadge) {
+                triggerSyncBadge.className = 'trigger-sync-status-badge status-ok';
+                triggerSyncBadge.textContent = '✅ 100% Utløst (▲)';
+            }
+            if (pmusSyncBadge) {
+                pmusSyncBadge.className = 'trigger-sync-status-badge status-ok';
+                pmusSyncBadge.textContent = '✅ Nok flow';
+            }
 
-            if (isTriggerable) {
-                if (triggerSyncBox) triggerSyncBox.classList.remove('warning-state');
-                if (pmusSyncBox) pmusSyncBox.classList.remove('warning-state');
-                if (triggerGaugeFill) triggerGaugeFill.classList.remove('warning-fill');
+            badges.trigger.classList.remove('badge-warning-pill', 'badge-danger-pill');
+            badges.pmus.classList.remove('badge-warning-pill');
 
-                if (triggerSyncBadge) {
-                    triggerSyncBadge.className = 'trigger-sync-status-badge status-ok';
-                    triggerSyncBadge.textContent = '✅ Utløses';
-                }
-                if (pmusSyncBadge) {
-                    pmusSyncBadge.className = 'trigger-sync-status-badge status-ok';
-                    pmusSyncBadge.textContent = '✅ Nok flow';
-                }
+            if (triggerSyncMessage) {
+                triggerSyncMessage.innerHTML = `Flow-trigger på <strong>${trigFlow.toFixed(1)} L/min</strong>: Pasienten trigger maskinen pålitelig ved hvert innpust (100%). Lilla trekant (▲) vises på hvert pust.`;
+            }
+            if (pmusSyncMessage) {
+                pmusSyncMessage.innerHTML = `Pasientinnsatsen genererer tilstrekkelig flow (P<sub>mus</sub>/R = ${patientPeakFlow.toFixed(1)} L/min) til å overvinne flow-triggeren på <strong>${trigFlow.toFixed(1)} L/min</strong>.`;
+            }
 
-                badges.trigger.classList.remove('badge-warning-pill');
-                badges.pmus.classList.remove('badge-warning-pill');
+        // 4 L/min: Registrerer av og til (~50% av gangene), kun støtte når det registreres
+        } else if (trigFlow === 4.0 || (trigFlow > 3.0 && trigFlow < 5.0)) {
+            if (triggerSyncBox) triggerSyncBox.className = 'trigger-sync-box warning-state';
+            if (triggerGaugeFill) triggerGaugeFill.className = 'trigger-gauge-fill warning-fill';
 
-                if (triggerSyncMessage) {
-                    triggerSyncMessage.innerHTML = `Pasientens flow (<strong>${patientFlow.toFixed(1)} L/min</strong>) overgår triggerkravet (<strong>${triggerReq.toFixed(1)} L/min</strong>). <strong>Margin: +${margin} L/min</strong>.`;
-                }
-                if (pmusSyncMessage) {
-                    pmusSyncMessage.innerHTML = `Pasienten genererer <strong>${patientFlow.toFixed(1)} L/min</strong> flow (Pmus/R) og overvinner flow-triggeren på <strong>${triggerReq.toFixed(1)} L/min</strong>.`;
-                }
-            } else {
-                if (triggerSyncBox) triggerSyncBox.classList.add('warning-state');
-                if (pmusSyncBox) pmusSyncBox.classList.add('warning-state');
-                if (triggerGaugeFill) triggerGaugeFill.classList.add('warning-fill');
+            if (triggerSyncBadge) {
+                triggerSyncBadge.className = 'trigger-sync-status-badge status-warning';
+                triggerSyncBadge.textContent = '⚠️ ~50% Asynkroni';
+            }
+            if (pmusSyncBadge) {
+                pmusSyncBadge.className = 'trigger-sync-status-badge status-warning';
+                pmusSyncBadge.textContent = '⚠️ Grensetilfelle';
+            }
 
-                if (triggerSyncBadge) {
-                    triggerSyncBadge.className = 'trigger-sync-status-badge status-warning';
-                    triggerSyncBadge.textContent = '⚠️ Uutløst';
-                }
-                if (pmusSyncBadge) {
-                    pmusSyncBadge.className = 'trigger-sync-status-badge status-warning';
-                    pmusSyncBadge.textContent = '⚠️ For lav flow';
-                }
+            badges.trigger.classList.add('badge-warning-pill');
+            badges.trigger.classList.remove('badge-danger-pill');
+            badges.pmus.classList.add('badge-warning-pill');
 
-                badges.trigger.classList.add('badge-warning-pill');
-                badges.pmus.classList.add('badge-warning-pill');
+            if (triggerSyncMessage) {
+                triggerSyncMessage.innerHTML = `⚠️ <strong>Grensetrigger (4.0 L/min):</strong> Pasienten klarer kun å utløse ca. 50% av pustene (missed efforts). Maskinen gir kun støtte (▲) på de pustene som utløses. Minuttvolumet halveres.`;
+            }
+            if (pmusSyncMessage) {
+                pmusSyncMessage.innerHTML = `⚠️ Varierende pasientrespons ved 4.0 L/min flow-trigger: Pasienten sliter med å nå terskelen ved hvert pust.`;
+            }
 
-                const diff = Math.abs(margin).toFixed(1);
-                if (triggerSyncMessage) {
-                    triggerSyncMessage.innerHTML = `⚠️ <strong>Uutløst flow-trigger!</strong> Pasienten genererer kun <strong>${patientFlow.toFixed(1)} L/min</strong> flow (terskel <strong>${triggerReq.toFixed(1)} L/min</strong>, mangler ${diff} L/min). Innpust utløses IKKE!`;
-                }
-                if (pmusSyncMessage) {
-                    pmusSyncMessage.innerHTML = `⚠️ Pasientens flow (<strong>${patientFlow.toFixed(1)} L/min</strong>) når ikke flow-triggeren (<strong>${triggerReq.toFixed(1)} L/min</strong>). Øk Pmus eller senk flow-trigger.`;
-                }
+        // 5 L/min: Registrerer ingen pust, gir ingen støtte (0%), apné-alarm
+        } else {
+            if (triggerSyncBox) triggerSyncBox.className = 'trigger-sync-box danger-state';
+            if (triggerGaugeFill) triggerGaugeFill.className = 'trigger-gauge-fill danger-fill';
+
+            if (triggerSyncBadge) {
+                triggerSyncBadge.className = 'trigger-sync-status-badge status-danger';
+                triggerSyncBadge.textContent = '🚨 0% Uutløst / Apné';
+            }
+            if (pmusSyncBadge) {
+                pmusSyncBadge.className = 'trigger-sync-status-badge status-danger';
+                pmusSyncBadge.textContent = '🚨 For lav flow';
+            }
+
+            badges.trigger.classList.remove('badge-warning-pill');
+            badges.trigger.classList.add('badge-danger-pill');
+            badges.pmus.classList.add('badge-warning-pill');
+
+            if (triggerSyncMessage) {
+                triggerSyncMessage.innerHTML = `🚨 <strong>Uutløst trigger (5.0 L/min):</strong> For tung trigger for pasienten! Ingen pust utløses, ingen støtte gis (forblir på EPAP). <strong>Apné-alarm er utløst!</strong>`;
+            }
+            if (pmusSyncMessage) {
+                pmusSyncMessage.innerHTML = `🚨 Pasienten klarer ikke å utløse 5.0 L/min flow-trigger. Senk triggeren til 1–3 L/min for å gjenopprette synkroni og ventilasjon.`;
             }
         }
-    }
-
-    // Funksjon for å bytte trigger-type (Flow vs Trykk)
-    function setTriggerType(type) {
-        simulator.settings.triggerType = type;
-        if (type === 'flow') {
-            btnTrigFlow.classList.add('active');
-            btnTrigPressure.classList.remove('active');
-
-            triggerSublabel.textContent = 'Flow-trigger (1–5 L/min)';
-            triggerLimitMin.textContent = '1.0 L/min (Mest sensitiv)';
-            triggerLimitMax.textContent = '5.0 L/min (Mindre sensitiv)';
-
-            sliders.trigger.min = '1';
-            sliders.trigger.max = '5';
-            sliders.trigger.step = '0.5';
-            sliders.trigger.value = simulator.settings.triggerFlow || 3.0;
-
-            btnTrigStepDown.setAttribute('data-step', '-0.5');
-            btnTrigStepUp.setAttribute('data-step', '0.5');
-
-            badges.trigger.textContent = `${simulator.settings.triggerFlow.toFixed(1)} L/min`;
-        } else {
-            btnTrigPressure.classList.add('active');
-            btnTrigFlow.classList.remove('active');
-
-            triggerSublabel.textContent = 'Trykk-trigger (-1 til -5 cmH₂O)';
-            triggerLimitMin.textContent = '-1.0 cmH₂O (Mest sensitiv)';
-            triggerLimitMax.textContent = '-5.0 cmH₂O (Tungt arbeid)';
-
-            sliders.trigger.min = '-5';
-            sliders.trigger.max = '-1';
-            sliders.trigger.step = '0.5';
-            sliders.trigger.value = simulator.settings.triggerPressure || -2.0;
-
-            btnTrigStepDown.setAttribute('data-step', '-0.5');
-            btnTrigStepUp.setAttribute('data-step', '0.5');
-
-            badges.trigger.textContent = `${simulator.settings.triggerPressure.toFixed(1)} cmH₂O`;
-        }
-        updateTriggerSyncUI();
-        updateInsights();
-    }
-
-    if (btnTrigFlow && btnTrigPressure) {
-        btnTrigFlow.addEventListener('click', () => setTriggerType('flow'));
-        btnTrigPressure.addEventListener('click', () => setTriggerType('pressure'));
     }
 
     // 3. Koble til Sliders
     function updateSimulatorFromUI() {
-        // Hent verdier
         const ipap = parseFloat(sliders.ipap.value);
         let epap = parseFloat(sliders.epap.value);
 
@@ -297,17 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cycling = parseFloat(sliders.cycling.value) / 100;
         const riseTime = parseFloat(sliders.riseTime.value) / 1000;
         const leak = parseFloat(sliders.leak.value);
-
-        // Oppdater trigger
-        if (simulator.settings.triggerType === 'flow') {
-            const trigVal = parseFloat(sliders.trigger.value);
-            simulator.settings.triggerFlow = trigVal;
-            badges.trigger.textContent = `${trigVal.toFixed(1)} L/min`;
-        } else {
-            const trigVal = parseFloat(sliders.trigger.value);
-            simulator.settings.triggerPressure = trigVal;
-            badges.trigger.textContent = `${trigVal.toFixed(1)} cmH₂O`;
-        }
+        const triggerFlow = parseFloat(sliders.trigger.value);
 
         // Oppdater simulatoren
         simulator.settings.ipap = ipap;
@@ -317,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         simulator.settings.riseTime = riseTime;
         simulator.settings.cyclingPercent = cycling;
         simulator.settings.leak = leak;
+        simulator.settings.triggerFlow = triggerFlow;
 
         simulator.patient.compliance = compliance;
         simulator.patient.resistance = resistance;
@@ -333,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         badges.cycling.textContent = `${Math.round(cycling * 100)} %`;
         badges.riseTime.textContent = `${Math.round(riseTime * 1000)} ms`;
         badges.leak.textContent = `${leak} L/min`;
+        badges.trigger.textContent = `${triggerFlow.toFixed(1)} L/min`;
 
         // Oppdater innstilte visninger i målepanelet
         dispIpap.textContent = ipap;
@@ -345,8 +253,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lytt på slider-endringer
     Object.values(sliders).forEach(slider => {
+        if (!slider) return;
         slider.addEventListener('input', () => {
-            // Hvis bruker justerer compliance eller resistance manuelt, sett preset til custom
             if (slider === sliders.compliance || slider === sliders.resistance) {
                 setActivePresetButton(null);
                 simulator.patient.preset = 'custom';
@@ -376,6 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Presets (Pasientcaser)
     function setActivePresetButton(activeKey) {
         Object.entries(presetBtns).forEach(([key, btn]) => {
+            if (!btn) return;
             if (key === activeKey) {
                 btn.classList.add('active');
             } else {
@@ -393,26 +302,30 @@ document.addEventListener('DOMContentLoaded', () => {
         sliders.resistance.value = simulator.patient.resistance;
         sliders.pmus.value = simulator.patient.pmusMax;
 
-        // Spesifikke forslag til IPAP/EPAP for klinisk relevans
         if (presetKey === 'copd') {
             sliders.ipap.value = 16;
             sliders.epap.value = 5;
             sliders.rr.value = 16;
+            sliders.trigger.value = 3.0;
         } else if (presetKey === 'restrictive') {
             sliders.ipap.value = 18;
             sliders.epap.value = 8;
             sliders.rr.value = 20;
+            sliders.trigger.value = 2.0;
         } else if (presetKey === 'normal') {
             sliders.ipap.value = 14;
             sliders.epap.value = 5;
             sliders.rr.value = 15;
+            sliders.trigger.value = 3.0;
         }
 
         updateSimulatorFromUI();
     }
 
     Object.entries(presetBtns).forEach(([key, btn]) => {
-        btn.addEventListener('click', () => applyPreset(key));
+        if (btn) {
+            btn.addEventListener('click', () => applyPreset(key));
+        }
     });
 
     // 5. Fane-veksling
@@ -451,10 +364,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnReset.addEventListener('click', () => {
+        simulator.reset();
         applyPreset('normal');
-        setTriggerType('flow');
         sliders.trigger.value = 3;
+        sliders.riseTime.value = 150;
+        sliders.cycling.value = 25;
+        sliders.leak.value = 0;
+        sliders.fio2.value = 30;
         renderer.initCanvas();
+        updateSimulatorFromUI();
     });
 
     // 7. Oppdater pedagogisk innsikt
@@ -466,49 +384,78 @@ document.addEventListener('DOMContentLoaded', () => {
         insightText.innerHTML = insights.clinicalNote;
     }
 
-    // 8. Oppdater målte pasientverdier i displayet
+    // 8. Oppdater målte pasientverdier i displayet og håndter alarmtilstand
     let readoutUpdateTimer = 0;
     function updateReadouts(dt) {
         readoutUpdateTimer += dt;
-        // Oppdater tallene jevnlig (ca 4 ganger i sekundet for behagelig lesbarhet)
         if (readoutUpdateTimer >= 0.25) {
             readoutUpdateTimer = 0;
+
+            const isApnea = simulator.state.isApneaAlarm;
+
+            // Oppdater synlighet for alarm-banner
+            if (alarmBanner) {
+                if (isApnea) {
+                    alarmBanner.classList.remove('hidden');
+                } else {
+                    alarmBanner.classList.add('hidden');
+                }
+            }
+
             const m = simulator.state.measured;
-            valPpeak.textContent = m.ppeak.toFixed(1);
-            valVt.textContent = m.vt;
-            valMv.textContent = m.mv.toFixed(1);
-            valRR.textContent = m.rrTotal;
+            if (isApnea) {
+                valPpeak.textContent = simulator.settings.epap.toFixed(1);
+                valVt.textContent = '0';
+                valMv.textContent = '0.0';
+                valRR.textContent = '0';
+
+                if (cardMetricPpeak) cardMetricPpeak.classList.add('metric-alarm-active');
+                if (cardMetricVt) cardMetricVt.classList.add('metric-alarm-active');
+                if (cardMetricMv) cardMetricMv.classList.add('metric-alarm-active');
+                if (cardMetricRR) cardMetricRR.classList.add('metric-alarm-active');
+            } else {
+                valPpeak.textContent = m.ppeak.toFixed(1);
+                valVt.textContent = m.vt;
+                valMv.textContent = m.mv.toFixed(1);
+                valRR.textContent = m.rrTotal;
+
+                if (cardMetricPpeak) cardMetricPpeak.classList.remove('metric-alarm-active');
+                if (cardMetricVt) cardMetricVt.classList.remove('metric-alarm-active');
+                if (cardMetricMv) cardMetricMv.classList.remove('metric-alarm-active');
+                if (cardMetricRR) cardMetricRR.classList.remove('metric-alarm-active');
+            }
         }
     }
 
     // 9. Hoved-animasjonsloop (60 FPS)
     function loop(currentTimestamp) {
-        const elapsedSec = Math.min(0.1, (currentTimestamp - lastTimestamp) / 1000);
+        const elapsedSec = (currentTimestamp - lastTimestamp) / 1000;
         lastTimestamp = currentTimestamp;
 
         if (!isPaused && elapsedSec > 0) {
-            // 1. Simuler fysiologi
-            simulator.step(elapsedSec);
+            if (elapsedSec > 0.5) {
+                // Fanen har vært i bakgrunnen — hopp over uten å skape tidssprang i kurvene
+                simulator.step(elapsedSec);
+            } else {
+                // 1. Simuler fysiologi
+                simulator.step(elapsedSec);
 
-            // 2. Send sample til grafisk monitor
-            const wasTriggered = simulator.state.justTriggered;
-            const isFlowTrigger = simulator.state.isFlowTrigger;
-            const isPawTrigger = simulator.state.isPawTrigger;
-            simulator.state.justTriggered = false;
+                // 2. Send sample til grafisk monitor
+                const wasTriggered = simulator.state.justTriggered;
+                simulator.state.justTriggered = false;
 
-            renderer.addSample(
-                elapsedSec,
-                simulator.state.paw,
-                simulator.state.volume,
-                simulator.state.flow,
-                wasTriggered,
-                simulator.settings.epap,
-                isFlowTrigger,
-                isPawTrigger
-            );
+                renderer.addSample(
+                    elapsedSec,
+                    simulator.state.paw,
+                    simulator.state.volume,
+                    simulator.state.flow,
+                    wasTriggered,
+                    simulator.settings.epap
+                );
 
-            // 3. Oppdater måletall
-            updateReadouts(elapsedSec);
+                // 3. Oppdater måletall og alarmbanner
+                updateReadouts(elapsedSec);
+            }
         }
 
         // 4. Tegn kurver
