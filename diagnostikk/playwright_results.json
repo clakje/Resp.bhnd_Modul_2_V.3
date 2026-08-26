@@ -1,0 +1,79 @@
+{
+  "s2Measurements": [
+    {
+      "valRR": "11",
+      "valMv": "5.5",
+      "valVt": "500",
+      "dispRrSpont": "11 (100%)",
+      "dispSpontFoot": "av 11 pust/min"
+    },
+    {
+      "valRR": "12",
+      "valMv": "6.0",
+      "valVt": "499",
+      "dispRrSpont": "12 (100%)",
+      "dispSpontFoot": "av 12 pust/min"
+    },
+    {
+      "valRR": "12",
+      "valMv": "6.0",
+      "valVt": "499",
+      "dispRrSpont": "12 (100%)",
+      "dispSpontFoot": "av 12 pust/min"
+    },
+    {
+      "valRR": "12",
+      "valMv": "6.0",
+      "valVt": "498",
+      "dispRrSpont": "12 (100%)",
+      "dispSpontFoot": "av 12 pust/min"
+    }
+  ],
+  "leakSamples": [
+    {
+      "leakSec": "14.3 (47%)",
+      "leakStatus": "⚠️ Høy lekkasje"
+    },
+    {
+      "leakSec": "14.0 (47%)",
+      "leakStatus": "⚠️ Høy lekkasje"
+    },
+    {
+      "leakSec": "13.9 (47%)",
+      "leakStatus": "⚠️ Høy lekkasje"
+    },
+    {
+      "leakSec": "22.6 (40%)",
+      "leakStatus": "Moderat lekkasje"
+    },
+    {
+      "leakSec": "23.0 (40%)",
+      "leakStatus": "Moderat lekkasje"
+    },
+    {
+      "leakSec": "23.2 (40%)",
+      "leakStatus": "Moderat lekkasje"
+    },
+    {
+      "leakSec": "14.5 (40%)",
+      "leakStatus": "Moderat lekkasje"
+    },
+    {
+      "leakSec": "14.2 (40%)",
+      "leakStatus": "Moderat lekkasje"
+    }
+  ],
+  "s4Data": {
+    "asynchronyIndex": "50 %",
+    "rrTotal": "16",
+    "rrSpont": "9 (58%)",
+    "spontFoot": "av 16 pust/min"
+  },
+  "fpsResult": {
+    "frames": 120,
+    "elapsed": 1.9976999999284744,
+    "fps": 60.06907944350827
+  },
+  "pageErrors": [],
+  "consoleWarnings": []
+}

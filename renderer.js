@@ -1,15 +1,15 @@
 /**
  * renderer.js - HTML5 Canvas 2D Medisinsk Ventilator Monitor (Hamilton-stil)
  * 
- * Egenskaper:
- * - Dynamisk Y-aksetilpasning for Paw, Flow og Volum: Skalering justeres automatisk
- *   både opp og ned etter synlige toppverdier, slik at kurvetoppen ALDRI kuttes bort.
- * - Tydelige forholdstall og Y-akser på VENSTRE side for alle 3 spor
- * - Paw (Trykk): Tydelig 0 cmH2O bunnlinje og PEEP-nivå [Gul/Orange]
- * - Flow (V̇ / Débit): Tydelig 0-linje i midten med arealvisning (+/-) [Hamilton Rosa/Magenta]
- * - Volum (V): Tydelig 0 ml grunnlinje og dynamisk fylling [Cyan]
- * - Sekundmarkører (5s intervaller / 1s grid på 15s sveip) og trigger-indikatorer (▲) ved pustestart
- * - Jevn 60 FPS Sweep-bar med gradient erase-sone
+ * FASE 5:
+ * - C7: Min/Maks-konvolutt per piksel for Paw, Flow, Volum og Pes (fanger opp korte hendelser som trykkoversving og terminal-spikes)
+ * - C8: Valgbar sveipetid (6 s / 10 s / 15 s), standard 10 s
+ * - C9: Faste kliniske skalaer som standard (Paw 0–40, Flow ±120, Vol 0–800, Pes -25..+5), med valgfri Auto-modus og klippeindikator
+ * - D3: 4. spor for Pes / Pmus (-P_mus, konvensjon nedover), lilla farge (#d946ef), dynamisk trackHeight, og 4 entydige markørtyper:
+ *   ▲ Fylt trekant: Assistert pust (pasientutløst)
+ *   △ Åpen trekant: Mislykket innsats (missed effort)
+ *   ⨂ Trekant med kryss: Autotrigger (pust uten innsats)
+ *   ■ Kvadrat: Maskinutløst backup-pust (mandatory)
  */
 
 class WaveformRenderer {
@@ -17,7 +17,7 @@ class WaveformRenderer {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         
-        // Fargepalett i tråd med medisinsk standard (Hamilton Medical / Servo-u)
+        // Fargepalett i tråd med medisinsk standard (Hamilton Medical / Servo-stil)
         this.colors = {
             bg: '#080d1a',
             grid: '#131e33',
@@ -30,84 +30,206 @@ class WaveformRenderer {
             pressure: '#fbbf24',       // Gul/Amber (Paw)
             pressureFill: 'rgba(251, 191, 36, 0.08)',
             
-            flow: '#22c55e',           // Klinisk Grønn (Flow)
-            flowTrigger: '#d946ef',    // Lilla / Magenta triggerfarge (Servo-standard)
+            flow: '#22c55e',           // Klinisk Grønn (Flow - Q_meas)
             flowFillPos: 'rgba(34, 197, 94, 0.16)', // Innpust areal (over 0-linje)
             flowFillNeg: 'rgba(34, 197, 94, 0.10)', // Utpust areal (under 0-linje)
-            flowFillTrigger: 'rgba(217, 70, 239, 0.20)', // Areal under lilla trigger
+            flowLung: 'rgba(134, 239, 172, 0.90)',  // Lys grønn stiplet (Sann Q_lunge, A7)
             
-            volume: '#06b6d4',         // Cyan / Lys blå (Volum)
+            volume: '#06b6d4',         // Cyan / Lys blå (Volum - V_meas)
             volumeFill: 'rgba(6, 182, 212, 0.10)',
+            volumeLung: 'rgba(165, 243, 252, 0.90)', // Lys cyan stiplet (Sant V_lunge, A7)
+
+            // 4. Spor: Pes / Pmus (D3)
+            pes: '#d946ef',            // Lilla / Magenta (Pes / Pmus)
+            pesFill: 'rgba(217, 70, 239, 0.12)',
             
             zeroLine: 'rgba(255, 255, 255, 0.65)',   // Knivskarp 0-linje
             peepLine: 'rgba(251, 191, 36, 0.35)',   // PEEP/EPAP referanselinje
+            clipIndicator: '#f43f5e',                // Rødrosa klippeindikator ved akselås (C9)
             
             text: '#8295b5',
             textDim: '#4f6485',
             textBright: '#ffffff',
-            triggerMark: '#d946ef'     // Triggermarkør ▲
+            triggerMark: '#d946ef'     // Triggermarkør (Hamilton lilla/magenta)
         };
 
         // Layout & Marger for kurvefeltet
         this.leftMargin = 64;   // Dedikert aksemarg på venstre side for forholdstall
         this.rightMargin = 16;  // Luft på høyre side
         
-        // Sweep innstillinger
-        this.sweepDuration = 15.0; // sekunder for ett helt sveip over skjermen (15 sekunder)
+        // C8: Sveip innstillinger (Standard: 10.0 s)
+        this.sweepDuration = 10.0; // sekunder for ett helt sveip (6.0, 10.0, 15.0)
         this.sweepTime = 0;
         this.sweepX = 0;          // Relativ pikselposisjon (0..activeWidth)
         this.eraseWidth = 24;     // Piksler foran sveipelinjen
 
-        // Databuffere
-        this.bufferWidth = 0;
-        this.pressureData = [];
-        this.volumeData = [];
-        this.flowData = [];
-        this.flowTriggerData = []; // Lagrer flow-trigger status per pikselposisjon
-        this.pawTriggerData = [];  // Lagrer trykk-trigger status per pikselposisjon (undertrykk)
-        this.triggerData = [];     // Lagrer trigger-trekanter per pikselposisjon
+        // D3: 4. spor visning (Standard: på)
+        this.showPesTrack = true;
 
-        // Dynamiske skalaer (Min / Maks grenser)
-        this.scales = {
-            pawMax: 25,    // cmH2O
+        // FASE 6 (D6): Undervisnings- og frysemodus
+        this.isFrozen = false;
+        this.isCursorActive = false;
+        this.cursorX = null;
+        this.cursorY = null;
+        this.showAnnotations = false;
+        this.annotations = [];
+
+        // C9: Akseskalering (Standard: Låst / faste kliniske skalaer)
+        this.autoScale = {
+            paw: false,
+            flow: false,
+            vol: false,
+            pes: false
+        };
+
+        // Faste kliniske skalaer (Standard når låst, C9)
+        this.fixedScales = {
             pawMin: 0,
-            volMax: 600,   // ml
+            pawMax: 40,
+            flowMin: -120,
+            flowMax: 120,
             volMin: 0,
-            flowMax: 40,   // L/min
-            flowMin: -40   // L/min
+            volMax: 800,
+            pesMin: -25,
+            pesMax: 5
+        };
+
+        // Dynamiske skalaer (Brukt når Auto er aktivert)
+        this.dynamicScales = {
+            pawMax: 40,
+            volMax: 800,
+            flowMax: 120,
+            flowMin: -120,
+            pesMin: -25,
+            pesMax: 5
         };
 
         // Standard kliniske skalanivåer for dynamisk tilpasning
         this.scaleTiers = {
             paw: [15, 20, 25, 30, 35, 40, 50, 60, 80, 100],
             flow: [20, 30, 40, 60, 80, 100, 120, 150, 200, 250, 300],
-            vol: [300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000]
+            vol: [300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000],
+            pes: [10, 15, 20, 25, 30, 40, 50]
         };
 
         // Holdetid før skala trappes ned (unngår flimring/uro)
         this.scaleHold = {
             paw: 0,
             flow: 0,
-            vol: 0
+            vol: 0,
+            pes: 0
         };
 
+        // Databuffere (C7: min/maks-konvolutt per piksel)
+        this.bufferWidth = 0;
+        this.pressureData = [];
+        this.volumeData = [];
+        this.flowData = [];
+        this.pesData = [];
+        this.volumeLungData = []; // Sann lungevolum buffer (A7)
+        this.flowLungData = [];   // Sann lungeflow buffer (A7)
+        this.markerData = [];     // D3: Innsatsmarkører per pikselposisjon
+
+        // Pedagogisk modus: Vis sanne lungekurver overlagret (A7)
+        this.showTrueCurves = false;
         this.currentEpap = 5;
 
         this.initCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
     }
 
+    // FASE 6 (D6): Frysemodus og undervisningsverktøy
+    setFrozen(frozen) {
+        this.isFrozen = !!frozen;
+    }
+
+    setCursor(x, y) {
+        if (x === null || x === undefined) {
+            this.clearCursor();
+            return;
+        }
+        this.isCursorActive = true;
+        this.cursorX = x;
+        this.cursorY = y;
+    }
+
+    clearCursor() {
+        this.isCursorActive = false;
+        this.cursorX = null;
+        this.cursorY = null;
+    }
+
+    setAnnotations(list) {
+        this.annotations = Array.isArray(list) ? list : [];
+    }
+
+    toggleAnnotations(show) {
+        this.showAnnotations = (show !== undefined) ? !!show : !this.showAnnotations;
+        return this.showAnnotations;
+    }
+
+    async copyToClipboard() {
+        try {
+            if (!navigator.clipboard || !navigator.clipboard.write) {
+                // Fallback for eldre nettlesere
+                return false;
+            }
+            const blob = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/png'));
+            if (!blob) return false;
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+            ]);
+            return true;
+        } catch (err) {
+            console.warn('Utklippstavle-eksport feilet:', err);
+            return false;
+        }
+    }
+
+    // C8: Endre sveipetid og reinitialiser buffere rent
+    setSweepDuration(seconds) {
+        this.sweepDuration = parseFloat(seconds) || 10.0;
+        this.sweepTime = 0;
+        this.sweepX = 0;
+        this._clearBuffers();
+    }
+
+    // D3: Slå 4. spor (Pes / Pmus) av eller på
+    togglePesTrack(show) {
+        this.showPesTrack = (show !== undefined) ? !!show : !this.showPesTrack;
+    }
+
+    // C9: Slå automatisk skalering av/på per spor eller globalt
+    setAutoScale(trackId, isAuto) {
+        if (trackId === 'all') {
+            this.autoScale.paw = isAuto;
+            this.autoScale.flow = isAuto;
+            this.autoScale.vol = isAuto;
+            this.autoScale.pes = isAuto;
+        } else if (this.autoScale[trackId] !== undefined) {
+            this.autoScale[trackId] = isAuto;
+        }
+    }
+
     initCanvas() {
         this.sweepTime = 0;
         this.sweepX = 0;
-        this.scales.pawMax = 25;
-        this.scales.volMax = 600;
-        this.scales.flowMax = 40;
-        this.scales.flowMin = -40;
         this.scaleHold.paw = 0;
         this.scaleHold.flow = 0;
         this.scaleHold.vol = 0;
+        this.scaleHold.pes = 0;
         this.resizeCanvas();
+    }
+
+    _clearBuffers() {
+        if (!this.activeWidth || this.activeWidth <= 0) return;
+        this.pressureData = new Array(this.activeWidth).fill(null);
+        this.volumeData = new Array(this.activeWidth).fill(null);
+        this.flowData = new Array(this.activeWidth).fill(null);
+        this.pesData = new Array(this.activeWidth).fill(null);
+        this.volumeLungData = new Array(this.activeWidth).fill(null);
+        this.flowLungData = new Array(this.activeWidth).fill(null);
+        this.markerData = new Array(this.activeWidth).fill(null);
     }
 
     resizeCanvas() {
@@ -115,7 +237,7 @@ class WaveformRenderer {
         const dpr = window.devicePixelRatio || 1;
         
         const width = Math.floor(rect.width);
-        const height = Math.max(380, Math.floor(rect.height));
+        const height = Math.max(480, Math.floor(rect.height));
 
         this.canvas.width = width * dpr;
         this.canvas.height = height * dpr;
@@ -130,86 +252,127 @@ class WaveformRenderer {
         this.activeWidth = Math.max(100, width - this.leftMargin - this.rightMargin);
         this.bufferWidth = this.activeWidth;
 
-        this.pressureData = new Array(this.activeWidth).fill(null);
-        this.volumeData = new Array(this.activeWidth).fill(null);
-        this.flowData = new Array(this.activeWidth).fill(null);
-        this.flowTriggerData = new Array(this.activeWidth).fill(false);
-        this.pawTriggerData = new Array(this.activeWidth).fill(false);
-        this.triggerData = new Array(this.activeWidth).fill(false);
+        this._clearBuffers();
     }
 
-    // Automatisk og kontinuerlig dynamisk Y-skalering for alle tre spor
-    _updateDynamicScales(dt, currentPaw, currentVol, currentFlow) {
+    // C9: Automatisk dynamisk Y-skalering når Auto-modus er på
+    _updateDynamicScales(dt, currentPaw, currentVol, currentFlow, currentPes, currentVolLung = 0, currentFlowLung = 0) {
         if (!this.activeWidth || this.activeWidth <= 0) return;
 
-        // Finn maksimumsverdier i synlig skjermbuffer + nåværende prøve
         let maxPaw = (currentPaw !== undefined && currentPaw !== null) ? currentPaw : 0;
         let maxFlow = (currentFlow !== undefined && currentFlow !== null) ? Math.abs(currentFlow) : 0;
         let maxVol = (currentVol !== undefined && currentVol !== null) ? currentVol : 0;
+        let maxPes = (currentPes !== undefined && currentPes !== null) ? Math.abs(currentPes) : 0;
+
+        if (this.showTrueCurves) {
+            if (currentFlowLung !== undefined && currentFlowLung !== null) {
+                maxFlow = Math.max(maxFlow, Math.abs(currentFlowLung));
+            }
+            if (currentVolLung !== undefined && currentVolLung !== null) {
+                maxVol = Math.max(maxVol, currentVolLung);
+            }
+        }
 
         for (let x = 0; x < this.activeWidth; x++) {
             const p = this.pressureData[x];
-            if (p !== null && p !== undefined && p > maxPaw) maxPaw = p;
+            if (p && p.max > maxPaw) maxPaw = p.max;
 
             const f = this.flowData[x];
-            if (f !== null && f !== undefined) {
-                const absF = Math.abs(f);
+            if (f) {
+                const absF = Math.max(Math.abs(f.max), Math.abs(f.min));
                 if (absF > maxFlow) maxFlow = absF;
             }
 
             const v = this.volumeData[x];
-            if (v !== null && v !== undefined && v > maxVol) maxVol = v;
+            if (v && v.max > maxVol) maxVol = v.max;
+
+            const ps = this.pesData[x];
+            if (ps) {
+                const absPs = Math.max(Math.abs(ps.max), Math.abs(ps.min));
+                if (absPs > maxPes) maxPes = absPs;
+            }
+
+            if (this.showTrueCurves) {
+                const fl = this.flowLungData[x];
+                if (fl) {
+                    const absFl = Math.max(Math.abs(fl.max), Math.abs(fl.min));
+                    if (absFl > maxFlow) maxFlow = absFl;
+                }
+                const vl = this.volumeLungData[x];
+                if (vl && vl.max > maxVol) maxVol = vl.max;
+            }
         }
 
-        // Beregn ønsket skalanivå med 15% headroom slik at kurvetoppen aldri berører taket eller kuttes
         const headroomRatio = 0.85;
 
-        // 1. Paw (Trykk)
-        const targetPaw = this._findTargetTier(maxPaw / headroomRatio, this.scaleTiers.paw, 15);
-        if (targetPaw > this.scales.pawMax) {
-            // Umiddelbar oppskalering for å unngå kutting
-            this.scales.pawMax = targetPaw;
-            this.scaleHold.paw = 0;
-        } else if (targetPaw < this.scales.pawMax) {
-            this.scaleHold.paw += dt;
-            if (this.scaleHold.paw >= 1.5) { // Vent 1.5 sek etter at alle høye topper er ute av skjermen
-                this.scales.pawMax = targetPaw;
+        // 1. Paw
+        if (this.autoScale.paw) {
+            const targetPaw = this._findTargetTier(maxPaw / headroomRatio, this.scaleTiers.paw, 15);
+            if (targetPaw > this.dynamicScales.pawMax) {
+                this.dynamicScales.pawMax = targetPaw;
+                this.scaleHold.paw = 0;
+            } else if (targetPaw < this.dynamicScales.pawMax) {
+                this.scaleHold.paw += dt;
+                if (this.scaleHold.paw >= 1.5) {
+                    this.dynamicScales.pawMax = targetPaw;
+                    this.scaleHold.paw = 0;
+                }
+            } else {
                 this.scaleHold.paw = 0;
             }
-        } else {
-            this.scaleHold.paw = 0;
         }
 
         // 2. Flow
-        const targetFlow = this._findTargetTier(maxFlow / headroomRatio, this.scaleTiers.flow, 20);
-        if (targetFlow > this.scales.flowMax) {
-            this.scales.flowMax = targetFlow;
-            this.scales.flowMin = -targetFlow;
-            this.scaleHold.flow = 0;
-        } else if (targetFlow < this.scales.flowMax) {
-            this.scaleHold.flow += dt;
-            if (this.scaleHold.flow >= 1.5) {
-                this.scales.flowMax = targetFlow;
-                this.scales.flowMin = -targetFlow;
+        if (this.autoScale.flow) {
+            const targetFlow = this._findTargetTier(maxFlow / headroomRatio, this.scaleTiers.flow, 20);
+            if (targetFlow > this.dynamicScales.flowMax) {
+                this.dynamicScales.flowMax = targetFlow;
+                this.dynamicScales.flowMin = -targetFlow;
+                this.scaleHold.flow = 0;
+            } else if (targetFlow < this.dynamicScales.flowMax) {
+                this.scaleHold.flow += dt;
+                if (this.scaleHold.flow >= 1.5) {
+                    this.dynamicScales.flowMax = targetFlow;
+                    this.dynamicScales.flowMin = -targetFlow;
+                    this.scaleHold.flow = 0;
+                }
+            } else {
                 this.scaleHold.flow = 0;
             }
-        } else {
-            this.scaleHold.flow = 0;
         }
 
         // 3. Volum
-        const targetVol = this._findTargetTier(maxVol / headroomRatio, this.scaleTiers.vol, 300);
-        if (targetVol > this.scales.volMax) {
-            this.scales.volMax = targetVol;
-            this.scaleHold.vol = 0;
-        } else if (targetVol < this.scales.volMax) {
-            this.scaleHold.vol += dt;
-            if (this.scaleHold.vol >= 1.5) {
-                this.scales.volMax = targetVol;
+        if (this.autoScale.vol) {
+            const targetVol = this._findTargetTier(maxVol / headroomRatio, this.scaleTiers.vol, 300);
+            if (targetVol > this.dynamicScales.volMax) {
+                this.dynamicScales.volMax = targetVol;
+                this.scaleHold.vol = 0;
+            } else if (targetVol < this.dynamicScales.volMax) {
+                this.scaleHold.vol += dt;
+                if (this.scaleHold.vol >= 1.5) {
+                    this.dynamicScales.volMax = targetVol;
+                    this.scaleHold.vol = 0;
+                }
+            } else {
                 this.scaleHold.vol = 0;
             }
-        } else {
-            this.scaleHold.vol = 0;
+        }
+
+        // 4. Pes
+        if (this.autoScale.pes) {
+            const targetPes = this._findTargetTier(maxPes / headroomRatio, this.scaleTiers.pes, 10);
+            if (targetPes > Math.abs(this.dynamicScales.pesMin)) {
+                this.dynamicScales.pesMin = -targetPes;
+                this.scaleHold.pes = 0;
+            } else if (targetPes < Math.abs(this.dynamicScales.pesMin)) {
+                this.scaleHold.pes += dt;
+                if (this.scaleHold.pes >= 1.5) {
+                    this.dynamicScales.pesMin = -targetPes;
+                    this.scaleHold.pes = 0;
+                }
+            } else {
+                this.scaleHold.pes = 0;
+            }
         }
     }
 
@@ -219,12 +382,11 @@ class WaveformRenderer {
                 return tiers[i];
             }
         }
-        // Dersom verdien overskrider definerte tiers, rund av pent oppover til nærmeste 10/100
         return Math.ceil(val / 10) * 10;
     }
 
-    // Legg til nye dataprøver fra simulatoren og oppdater sweep
-    addSample(dt, paw, volume, flow, isTriggered = false, epap = 5, isFlowTrigger = false, isPawTrigger = false) {
+    // C7 & D3: Legg til sample med min/maks-konvolutt og hendelsesmarkører
+    addSample(dt, sampleOrPaw, volume, flow, isTriggered = false, epap = 5, volumeLung = null, flowLung = null, events = null) {
         if (!this.activeWidth || this.activeWidth <= 0) return;
 
         this.currentEpap = epap;
@@ -237,40 +399,96 @@ class WaveformRenderer {
         this.sweepX = (this.sweepTime / this.sweepDuration) * this.activeWidth;
         const currentPx = Math.floor(this.sweepX);
 
-        // Oppdater dynamiske Y-akser
-        this._updateDynamicScales(dt, paw, volume, flow);
+        // Hent strukturert min/maks-prøve
+        let pSample, fSample, vSample, pesSample, vLungSample, fLungSample;
 
-        // Fyll inn i buffer
+        if (typeof sampleOrPaw === 'object' && sampleOrPaw !== null) {
+            pSample = { min: sampleOrPaw.pawMin, max: sampleOrPaw.pawMax, last: sampleOrPaw.pawLast };
+            fSample = { min: sampleOrPaw.flowMin, max: sampleOrPaw.flowMax, last: sampleOrPaw.flowLast };
+            vSample = { min: sampleOrPaw.volMin, max: sampleOrPaw.volMax, last: sampleOrPaw.volLast };
+            pesSample = { min: sampleOrPaw.pesMin, max: sampleOrPaw.pesMax, last: sampleOrPaw.pesLast };
+            fLungSample = (sampleOrPaw.flowLungMin !== undefined) ? { min: sampleOrPaw.flowLungMin, max: sampleOrPaw.flowLungMax, last: sampleOrPaw.flowLungLast } : null;
+            vLungSample = (sampleOrPaw.volLungMin !== undefined) ? { min: sampleOrPaw.volLungMin, max: sampleOrPaw.volLungMax, last: sampleOrPaw.volLungLast } : null;
+        } else {
+            // Bakoverkompatibilitet
+            const p = sampleOrPaw;
+            pSample = { min: p, max: p, last: p };
+            fSample = { min: flow, max: flow, last: flow };
+            vSample = { min: volume, max: volume, last: volume };
+            pesSample = { min: 0, max: 0, last: 0 };
+            fLungSample = (flowLung !== null) ? { min: flowLung, max: flowLung, last: flowLung } : null;
+            vLungSample = (volumeLung !== null) ? { min: volumeLung, max: volumeLung, last: volumeLung } : null;
+        }
+
+        // Oppdater dynamiske Y-akser
+        this._updateDynamicScales(
+            dt,
+            pSample.last,
+            vSample.last,
+            fSample.last,
+            pesSample.last,
+            vLungSample ? vLungSample.last : 0,
+            fLungSample ? fLungSample.last : 0
+        );
+
         const startX = Math.floor(prevX);
         const endX = currentPx;
 
+        // Tøm slettesonen foran nåværende sveipelinje så gamle markører og kurver fjernes rent
+        for (let i = 1; i <= this.eraseWidth; i++) {
+            const clearIdx = (currentPx + i) % this.activeWidth;
+            this.pressureData[clearIdx] = null;
+            this.flowData[clearIdx] = null;
+            this.volumeData[clearIdx] = null;
+            this.pesData[clearIdx] = null;
+            this.flowLungData[clearIdx] = null;
+            this.volumeLungData[clearIdx] = null;
+            this.markerData[clearIdx] = null;
+        }
+
+        // Hjelpefunksjon for å skrive min/maks inn i pikselbuffer
+        const writeToBuffer = (buf, idx, s) => {
+            if (!s) return;
+            if (buf[idx] === null || buf[idx] === undefined) {
+                buf[idx] = { min: s.min, max: s.max, last: s.last };
+            } else {
+                buf[idx].min = Math.min(buf[idx].min, s.min);
+                buf[idx].max = Math.max(buf[idx].max, s.max);
+                buf[idx].last = s.last;
+            }
+        };
+
+        const applySamplesAt = (x) => {
+            writeToBuffer(this.pressureData, x, pSample);
+            writeToBuffer(this.flowData, x, fSample);
+            writeToBuffer(this.volumeData, x, vSample);
+            writeToBuffer(this.pesData, x, pesSample);
+            if (fLungSample) writeToBuffer(this.flowLungData, x, fLungSample);
+            if (vLungSample) writeToBuffer(this.volumeLungData, x, vLungSample);
+        };
+
+        // Fyll inn i buffer for sveipet
         if (endX >= startX) {
             for (let x = startX; x <= endX && x < this.activeWidth; x++) {
-                this.pressureData[x] = paw;
-                this.volumeData[x] = volume;
-                this.flowData[x] = flow;
-                this.flowTriggerData[x] = isFlowTrigger;
-                this.pawTriggerData[x] = isPawTrigger;
-                this.triggerData[x] = (x === startX && isTriggered);
+                applySamplesAt(x);
             }
         } else {
             // Skjerm vendt rundt (wrap-around)
             for (let x = startX; x < this.activeWidth; x++) {
-                this.pressureData[x] = paw;
-                this.volumeData[x] = volume;
-                this.flowData[x] = flow;
-                this.flowTriggerData[x] = isFlowTrigger;
-                this.pawTriggerData[x] = isPawTrigger;
-                this.triggerData[x] = (x === startX && isTriggered);
+                applySamplesAt(x);
             }
             for (let x = 0; x <= endX; x++) {
-                this.pressureData[x] = paw;
-                this.volumeData[x] = volume;
-                this.flowData[x] = flow;
-                this.flowTriggerData[x] = isFlowTrigger;
-                this.pawTriggerData[x] = isPawTrigger;
-                this.triggerData[x] = (x === 0 && isTriggered);
+                applySamplesAt(x);
             }
+        }
+
+        // D3: Håndter innsatsmarkører (fra hendelsesliste eller trigger-flagg)
+        if (events && Array.isArray(events) && events.length > 0) {
+            events.forEach(ev => {
+                this.markerData[currentPx] = { type: ev.type, t: ev.t };
+            });
+        } else if (isTriggered) {
+            this.markerData[currentPx] = { type: 'assist', t: this.sweepTime };
         }
     }
 
@@ -288,13 +506,26 @@ class WaveformRenderer {
         ctx.fillStyle = this.colors.bg;
         ctx.fillRect(0, 0, w, h);
 
-        // Tre like store spor (Tracks): Paw øverst, Flow i midten, Volum nederst
-        const trackHeight = h / 3;
+        // D3: Dynamisk antall synlige spor (3 eller 4 spor)
+        const numTracks = this.showPesTrack ? 4 : 3;
+        const trackHeight = h / numTracks;
+
         const tracks = [
             { id: 'paw', label: 'Paw', unit: 'cmH₂O', color: this.colors.pressure, top: 0, height: trackHeight },
             { id: 'flow', label: 'Flow', unit: 'L/min', color: this.colors.flow, top: trackHeight, height: trackHeight },
             { id: 'vol', label: 'V', unit: 'ml', color: this.colors.volume, top: trackHeight * 2, height: trackHeight }
         ];
+
+        if (this.showPesTrack) {
+            tracks.push({
+                id: 'pes',
+                label: 'Pes / Pmus',
+                unit: 'cmH₂O',
+                color: this.colors.pes,
+                top: trackHeight * 3,
+                height: trackHeight
+            });
+        }
 
         // 2. Rutenett, sekundmarkører og tidsakse
         this._drawGridAndTimeAxis(ctx, w, h, tracks, leftM, activeW);
@@ -304,25 +535,241 @@ class WaveformRenderer {
         this._drawFlowTrack(ctx, tracks[1], leftM, activeW);
         this._drawVolumeTrack(ctx, tracks[2], leftM, activeW);
 
-        // 4. Tegn Sweep Bar og Erase Zone
-        this._drawSweepBar(ctx, h, leftM, activeW);
+        if (this.showPesTrack) {
+            this._drawPesTrack(ctx, tracks[3], leftM, activeW);
+        }
 
-        // 5. Tegn Y-akser, dynamiske skalaer og forholdstall på venstre side
+        // 4. Tegn Sweep Bar og Erase Zone (bare når simuleringen er aktiv)
+        if (!this.isFrozen) {
+            this._drawSweepBar(ctx, h, leftM, activeW);
+        }
+
+        // 5. Tegn Y-akser, dynamiske/låste skalaer og forholdstall på venstre side
         this._drawLeftYAxes(ctx, tracks, leftM, activeW);
+
+        // 6. FASE 6 (D6): Tegn fasit-annotasjoner hvis aktivert
+        if (this.showAnnotations && this.annotations && this.annotations.length > 0) {
+            this._drawAnnotations(ctx, tracks, leftM, activeW, h);
+        }
+
+        // 7. FASE 6 (D6): Tegn kursor og flytende måleverdikort hvis aktiv
+        if (this.isCursorActive && this.cursorX !== null) {
+            this._drawCursor(ctx, tracks, leftM, activeW, h);
+        }
+    }
+
+    // FASE 6 (D6): Tegner kursorlinje og flytende måleverdikort
+    _drawCursor(ctx, tracks, leftM, activeW, h) {
+        ctx.save();
+        const curX = Math.max(leftM, Math.min(leftM + activeW - 1, this.cursorX));
+        const bufX = Math.floor(curX - leftM);
+
+        // Vertikal kursorlinje
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(curX, 0);
+        ctx.lineTo(curX, h);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Hent data ved kursor
+        const pPt = this.pressureData[bufX];
+        const fPt = this.flowData[bufX];
+        const vPt = this.volumeData[bufX];
+        const psPt = this.pesData[bufX];
+
+        const pVal = pPt ? pPt.last : null;
+        const fVal = fPt ? fPt.last : null;
+        const vVal = vPt ? vPt.last : null;
+        const psVal = psPt ? psPt.last : null;
+
+        // Sekundposisjon i sveipet
+        const timeSec = (bufX / activeW) * this.sweepDuration;
+
+        // Funksjon for å beregne Y-posisjon på skjerm for et spor
+        const getYForVal = (trackIndex, val) => {
+            if (val === null || val === undefined) return null;
+            const track = tracks[trackIndex];
+            const paddingTop = 22;
+            const paddingBottom = 10;
+            const bottomY = track.top + track.height - paddingBottom;
+            const topY = track.top + paddingTop;
+            const usableH = bottomY - topY;
+
+            if (track.id === 'paw') {
+                const maxP = this.autoScale.paw ? this.dynamicScales.pawMax : this.fixedScales.pawMax;
+                return bottomY - (Math.max(0, val) / maxP) * usableH;
+            } else if (track.id === 'flow') {
+                const maxF = this.autoScale.flow ? this.dynamicScales.flowMax : this.fixedScales.flowMax;
+                const zeroY = topY + usableH / 2;
+                return zeroY - (val / maxF) * (usableH / 2);
+            } else if (track.id === 'vol') {
+                const maxV = this.autoScale.vol ? this.dynamicScales.volMax : this.fixedScales.volMax;
+                return bottomY - (Math.max(0, val) / maxV) * usableH;
+            } else if (track.id === 'pes') {
+                const minPs = this.autoScale.pes ? this.dynamicScales.pesMin : this.fixedScales.pesMin;
+                const maxPs = this.autoScale.pes ? this.dynamicScales.pesMax : this.fixedScales.pesMax;
+                const range = maxPs - minPs;
+                return bottomY - ((val - minPs) / range) * usableH;
+            }
+            return null;
+        };
+
+        // Tegn små sirkler på hver kurve
+        const drawPointCircle = (y, color) => {
+            if (y === null) return;
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(curX, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        };
+
+        drawPointCircle(getYForVal(0, pVal), this.colors.pressure);
+        drawPointCircle(getYForVal(1, fVal), this.colors.flow);
+        drawPointCircle(getYForVal(2, vVal), this.colors.volume);
+        if (this.showPesTrack && tracks[3]) {
+            drawPointCircle(getYForVal(3, psVal), this.colors.pes);
+        }
+
+        // Tegn flytende tooltip-boks
+        const cardW = 165;
+        const cardH = this.showPesTrack ? 120 : 100;
+        let cardX = curX + 12;
+        if (cardX + cardW > leftM + activeW) {
+            cardX = curX - cardW - 12;
+        }
+        let cardY = (this.cursorY !== null && this.cursorY !== undefined) ? this.cursorY - cardH / 2 : 20;
+        cardY = Math.max(10, Math.min(h - cardH - 10, cardY));
+
+        ctx.fillStyle = 'rgba(10, 15, 28, 0.94)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(cardX, cardY, cardW, cardH, 6);
+        } else {
+            ctx.rect(cardX, cardY, cardW, cardH);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        // Tooltip innhold
+        ctx.textAlign = 'left';
+        let lineY = cardY + 16;
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 10px monospace';
+        ctx.fillText(`⏱ TID: ${timeSec.toFixed(2)} s`, cardX + 10, lineY);
+
+        lineY += 18;
+        ctx.fillStyle = this.colors.pressure;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText(`Paw:  ${pVal !== null ? pVal.toFixed(1) : '--'} cmH₂O`, cardX + 10, lineY);
+
+        lineY += 16;
+        ctx.fillStyle = this.colors.flow;
+        const fText = (fVal !== null) ? ((fVal > 0 ? '+' : '') + fVal.toFixed(1)) : '--';
+        ctx.fillText(`Flow: ${fText} L/min`, cardX + 10, lineY);
+
+        lineY += 16;
+        ctx.fillStyle = this.colors.volume;
+        ctx.fillText(`Vol:  ${vVal !== null ? vVal.toFixed(0) : '--'} ml`, cardX + 10, lineY);
+
+        if (this.showPesTrack) {
+            lineY += 16;
+            ctx.fillStyle = this.colors.pes;
+            ctx.fillText(`Pes:  ${psVal !== null ? psVal.toFixed(1) : '--'} cmH₂O`, cardX + 10, lineY);
+        }
+
+        ctx.restore();
+    }
+
+    // FASE 6 (D6): Tegner annotasjonslag med ringer, piler og forklarende tekst for aktivt scenario
+    _drawAnnotations(ctx, tracks, leftM, activeW, h) {
+        if (!this.annotations || this.annotations.length === 0) return;
+        ctx.save();
+
+        this.annotations.forEach(ann => {
+            const relX = (ann.relX !== undefined) ? ann.relX : 0.5;
+            const targetX = leftM + Math.round(relX * activeW);
+            const track = tracks.find(t => t.id === ann.track) || tracks[0];
+
+            const targetY = track.top + track.height * (ann.relY || 0.45);
+            const calloutX = (ann.boxX !== undefined) ? (leftM + ann.boxX * activeW) : Math.min(leftM + activeW - 140, targetX + 25);
+            const calloutY = (ann.boxY !== undefined) ? (track.top + ann.boxY * track.height) : Math.max(track.top + 10, targetY - 35);
+
+            // Rød/oransje markering rundt funnet
+            ctx.strokeStyle = '#f43f5e';
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(targetX, targetY, 20, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Pil fra callout til sirkel
+            ctx.strokeStyle = '#fb7185';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(calloutX + 10, calloutY + 12);
+            ctx.lineTo(targetX, targetY);
+            ctx.stroke();
+
+            // Callout-boks
+            const text1 = ann.title || 'Funn';
+            const text2 = ann.desc || '';
+            ctx.font = 'bold 11px sans-serif';
+            const w1 = ctx.measureText(text1).width;
+            ctx.font = '10px sans-serif';
+            const w2 = text2 ? ctx.measureText(text2).width : 0;
+            const boxW = Math.max(w1, w2) + 20;
+            const boxH = text2 ? 38 : 24;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+            ctx.strokeStyle = '#f43f5e';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(calloutX, calloutY, boxW, boxH, 6);
+            } else {
+                ctx.rect(calloutX, calloutY, boxW, boxH);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#fca5a5';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(text1, calloutX + 10, calloutY + 14);
+
+            if (text2) {
+                ctx.fillStyle = '#f1f5f9';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(text2, calloutX + 10, calloutY + 28);
+            }
+        });
+
+        ctx.restore();
     }
 
     _drawGridAndTimeAxis(ctx, w, h, tracks, leftM, activeW) {
         ctx.save();
 
-        // Bakgrunnsrutenett (Sekundstreker)
         const seconds = this.sweepDuration;
-        const labelInterval = (seconds > 12) ? 5 : 1; // Vis tekstetikett hvert 5. sekund for lange sveip (15s/25s), eller 1s for korte
+        let labelInterval = 1;
+        if (seconds >= 15) labelInterval = 5;
+        else if (seconds >= 10) labelInterval = 2;
+        else labelInterval = 1;
 
         for (let s = 0; s <= seconds; s++) {
             const x = leftM + Math.round((s / seconds) * activeW);
             const isMajor = (s % labelInterval === 0);
             
-            // Vertikal sekundlinje (litt tydeligere for hovedsekunder, subtilt for 1-sekunds grid)
             ctx.strokeStyle = isMajor ? this.colors.grid : this.colors.gridSubtle;
             ctx.lineWidth = isMajor ? 1 : 0.75;
             ctx.beginPath();
@@ -330,7 +777,7 @@ class WaveformRenderer {
             ctx.lineTo(x, h);
             ctx.stroke();
 
-            // Sekundtall langs aksen mellom Paw og Flow (som på Hamilton/Servo)
+            // Sekundtall langs aksen mellom Paw og Flow
             if (s > 0 && s < seconds && isMajor) {
                 ctx.fillStyle = this.colors.textDim;
                 ctx.font = '500 9px monospace';
@@ -339,7 +786,7 @@ class WaveformRenderer {
             }
         }
 
-        // Spor-oppdeling (Horisontale skillelinjer mellom de tre sporene)
+        // Spor-oppdeling (Horisontale skillelinjer mellom sporene)
         tracks.forEach((track, index) => {
             if (index > 0) {
                 ctx.strokeStyle = this.colors.axisLine;
@@ -354,8 +801,8 @@ class WaveformRenderer {
         ctx.restore();
     }
 
-    // Genererer pene, logiske og klinisk gjenkjennelige tikk-verdier for valgt skala
-    _getTicksForScale(type, maxVal) {
+    // Genererer klinisk gjenkjennelige tikk-verdier
+    _getTicksForScale(type, maxVal, minVal = 0) {
         if (type === 'paw') {
             if (maxVal <= 15) return [15, 10, 5, 0];
             if (maxVal <= 20) return [20, 15, 10, 5, 0];
@@ -381,17 +828,20 @@ class WaveformRenderer {
             if (maxVal <= 1200) return [1200, 900, 600, 300, 0];
             if (maxVal <= 1500) return [1500, 1000, 500, 0];
             if (maxVal <= 2000) return [2000, 1500, 1000, 500, 0];
-            if (maxVal <= 2500) return [2500, 2000, 1500, 1000, 500, 0];
-            if (maxVal <= 3000) return [3000, 2000, 1000, 0];
             return this._calculateTicks(0, maxVal, 4);
+        } else if (type === 'pes') {
+            const absMin = Math.abs(minVal);
+            if (absMin <= 15) return [5, 0, -5, -10, -15];
+            if (absMin <= 25) return [5, 0, -10, -20, -25];
+            if (absMin <= 30) return [5, 0, -10, -20, -30];
+            return [5, 0, -Math.round(absMin / 2), -absMin];
         }
-        return this._calculateTicks(0, maxVal, 4);
+        return this._calculateTicks(minVal, maxVal, 4);
     }
 
     _drawLeftYAxes(ctx, tracks, leftM, activeW) {
         ctx.save();
 
-        // Vertikal Y-akselinje ved start av kurvefeltet
         ctx.strokeStyle = this.colors.axisLine;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -399,32 +849,36 @@ class WaveformRenderer {
         ctx.lineTo(leftM, this.logicalHeight);
         ctx.stroke();
 
-        const paddingBottom = 12;
-        const paddingTop = 28;
+        const paddingBottom = 10;
+        const paddingTop = 22;
 
         // 1. Paw Akse (Øverst)
         const pTrack = tracks[0];
         const pTopY = pTrack.top + paddingTop;
         const pBottomY = pTrack.top + pTrack.height - paddingBottom;
         const pUsableH = pBottomY - pTopY;
+        const pawMax = this.autoScale.paw ? this.dynamicScales.pawMax : this.fixedScales.pawMax;
 
-        // Tittel & Enhet øverst til venstre
         ctx.fillStyle = pTrack.color;
-        ctx.font = 'bold 13px "Segoe UI", sans-serif';
+        ctx.font = 'bold 12px "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText('Paw', 8, pTrack.top + 14);
         ctx.fillStyle = this.colors.text;
-        ctx.font = '500 10px monospace';
-        ctx.fillText('cmH₂O', 8, pTrack.top + 26);
+        ctx.font = '500 9px monospace';
+        ctx.fillText('cmH₂O', 8, pTrack.top + 24);
 
-        // Skalaverdier (forholdstall) for Paw
-        const pawTicks = this._getTicksForScale('paw', this.scales.pawMax);
+        if (!this.autoScale.paw) {
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
+            ctx.font = '600 8px monospace';
+            ctx.fillText('🔒LÅS', leftM - 38, pTrack.top + 13);
+        }
+
+        const pawTicks = this._getTicksForScale('paw', pawMax);
         pawTicks.forEach(val => {
-            const ratio = val / this.scales.pawMax;
+            const ratio = val / pawMax;
             const y = pBottomY - ratio * pUsableH;
             
-            // Subtil horisontal referanselinje over kurvefeltet (som på Servo/Hamilton)
-            if (val > 0 && val < this.scales.pawMax) {
+            if (val > 0 && val < pawMax) {
                 ctx.strokeStyle = this.colors.gridTickLine;
                 ctx.lineWidth = 0.8;
                 ctx.beginPath();
@@ -433,7 +887,6 @@ class WaveformRenderer {
                 ctx.stroke();
             }
 
-            // Tikk-merke
             ctx.strokeStyle = this.colors.axisLine;
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -441,11 +894,10 @@ class WaveformRenderer {
             ctx.lineTo(leftM, y);
             ctx.stroke();
 
-            // Tall
             ctx.fillStyle = (val === 0) ? this.colors.textBright : this.colors.text;
-            ctx.font = (val === 0) ? 'bold 11px monospace' : '10px monospace';
+            ctx.font = (val === 0) ? 'bold 10px monospace' : '9px monospace';
             ctx.textAlign = 'right';
-            ctx.fillText(`${val}`, leftM - 8, y + 3.5);
+            ctx.fillText(`${val}`, leftM - 7, y + 3.5);
         });
 
         // 2. Flow Akse (I midten)
@@ -454,26 +906,28 @@ class WaveformRenderer {
         const fBottomY = fTrack.top + fTrack.height - paddingBottom;
         const fZeroY = fTopY + (fBottomY - fTopY) / 2;
         const fHalfH = (fBottomY - fTopY) / 2;
+        const flowMax = this.autoScale.flow ? this.dynamicScales.flowMax : this.fixedScales.flowMax;
 
-        // Tittel & Enhet
         ctx.fillStyle = fTrack.color;
-        ctx.font = 'bold 13px "Segoe UI", sans-serif';
+        ctx.font = 'bold 12px "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText('Flow', 8, fTrack.top + 14);
         ctx.fillStyle = this.colors.text;
-        ctx.font = '500 10px monospace';
-        ctx.fillText('L/min', 8, fTrack.top + 26);
+        ctx.font = '500 9px monospace';
+        ctx.fillText('L/min', 8, fTrack.top + 24);
 
-        // Skalaverdier for Flow (+Max, +Mid, 0, -Mid, -Max)
-        const fMax = this.scales.flowMax;
-        const flowTicks = this._getTicksForScale('flow', fMax);
+        if (!this.autoScale.flow) {
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.7)';
+            ctx.font = '600 8px monospace';
+            ctx.fillText('🔒LÅS', leftM - 38, fTrack.top + 13);
+        }
 
+        const flowTicks = this._getTicksForScale('flow', flowMax);
         flowTicks.forEach(val => {
-            const ratio = val / fMax; // -1 til +1
+            const ratio = val / flowMax;
             const y = fZeroY - ratio * fHalfH;
 
-            // Subtil referanselinje
-            if (Math.abs(val) > 0 && Math.abs(val) < fMax) {
+            if (Math.abs(val) > 0 && Math.abs(val) < flowMax) {
                 ctx.strokeStyle = this.colors.gridTickLine;
                 ctx.lineWidth = 0.8;
                 ctx.beginPath();
@@ -482,7 +936,6 @@ class WaveformRenderer {
                 ctx.stroke();
             }
 
-            // Tikk-merke
             ctx.strokeStyle = (val === 0) ? this.colors.zeroLine : this.colors.axisLine;
             ctx.lineWidth = (val === 0) ? 1.5 : 1;
             ctx.beginPath();
@@ -490,37 +943,40 @@ class WaveformRenderer {
             ctx.lineTo(leftM, y);
             ctx.stroke();
 
-            // Tall
             ctx.fillStyle = (val === 0) ? this.colors.textBright : this.colors.text;
-            ctx.font = (val === 0) ? 'bold 11px monospace' : '10px monospace';
+            ctx.font = (val === 0) ? 'bold 10px monospace' : '9px monospace';
             ctx.textAlign = 'right';
             const prefix = (val > 0) ? '+' : '';
-            ctx.fillText(`${prefix}${val}`, leftM - 8, y + 3.5);
+            ctx.fillText(`${prefix}${val}`, leftM - 7, y + 3.5);
         });
 
-        // 3. Volum Akse (Nederst)
+        // 3. Volum Akse (Nederst eller over Pes)
         const vTrack = tracks[2];
         const vTopY = vTrack.top + paddingTop;
         const vBottomY = vTrack.top + vTrack.height - paddingBottom;
         const vUsableH = vBottomY - vTopY;
+        const volMax = this.autoScale.vol ? this.dynamicScales.volMax : this.fixedScales.volMax;
 
-        // Tittel & Enhet
         ctx.fillStyle = vTrack.color;
-        ctx.font = 'bold 13px "Segoe UI", sans-serif';
+        ctx.font = 'bold 12px "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText('V', 8, vTrack.top + 14);
         ctx.fillStyle = this.colors.text;
-        ctx.font = '500 10px monospace';
-        ctx.fillText('ml', 8, vTrack.top + 26);
+        ctx.font = '500 9px monospace';
+        ctx.fillText('ml', 8, vTrack.top + 24);
 
-        // Skalaverdier for Volum
-        const volTicks = this._getTicksForScale('vol', this.scales.volMax);
+        if (!this.autoScale.vol) {
+            ctx.fillStyle = 'rgba(6, 182, 212, 0.7)';
+            ctx.font = '600 8px monospace';
+            ctx.fillText('🔒LÅS', leftM - 38, vTrack.top + 13);
+        }
+
+        const volTicks = this._getTicksForScale('vol', volMax);
         volTicks.forEach(val => {
-            const ratio = val / this.scales.volMax;
+            const ratio = val / volMax;
             const y = vBottomY - ratio * vUsableH;
 
-            // Subtil referanselinje
-            if (val > 0 && val < this.scales.volMax) {
+            if (val > 0 && val < volMax) {
                 ctx.strokeStyle = this.colors.gridTickLine;
                 ctx.lineWidth = 0.8;
                 ctx.beginPath();
@@ -529,7 +985,6 @@ class WaveformRenderer {
                 ctx.stroke();
             }
 
-            // Tikk-merke
             ctx.strokeStyle = this.colors.axisLine;
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -537,23 +992,75 @@ class WaveformRenderer {
             ctx.lineTo(leftM, y);
             ctx.stroke();
 
-            // Tall
             ctx.fillStyle = (val === 0) ? this.colors.textBright : this.colors.text;
-            ctx.font = (val === 0) ? 'bold 11px monospace' : '10px monospace';
+            ctx.font = (val === 0) ? 'bold 10px monospace' : '9px monospace';
             ctx.textAlign = 'right';
-            ctx.fillText(`${val}`, leftM - 8, y + 3.5);
+            ctx.fillText(`${val}`, leftM - 7, y + 3.5);
         });
+
+        // 4. Pes / Pmus Akse (D3: Fjerde spor nederst hvis aktivert)
+        if (this.showPesTrack && tracks[3]) {
+            const psTrack = tracks[3];
+            const psTopY = psTrack.top + paddingTop;
+            const psBottomY = psTrack.top + psTrack.height - paddingBottom;
+            const psUsableH = psBottomY - psTopY;
+            const pesMin = this.autoScale.pes ? this.dynamicScales.pesMin : this.fixedScales.pesMin;
+            const pesMax = this.autoScale.pes ? this.dynamicScales.pesMax : this.fixedScales.pesMax;
+            const pesRange = pesMax - pesMin;
+
+            ctx.fillStyle = psTrack.color;
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('Pes / Pmus', 8, psTrack.top + 14);
+            ctx.fillStyle = this.colors.text;
+            ctx.font = '500 9px monospace';
+            ctx.fillText('cmH₂O', 8, psTrack.top + 24);
+
+            if (!this.autoScale.pes) {
+                ctx.fillStyle = 'rgba(217, 70, 239, 0.7)';
+                ctx.font = '600 8px monospace';
+                ctx.fillText('🔒LÅS', leftM - 38, psTrack.top + 13);
+            }
+
+            const pesTicks = this._getTicksForScale('pes', pesMax, pesMin);
+            pesTicks.forEach(val => {
+                const ratio = (val - pesMin) / pesRange;
+                const y = psBottomY - ratio * psUsableH;
+
+                if (val !== pesMin && val !== pesMax) {
+                    ctx.strokeStyle = (val === 0) ? 'rgba(255, 255, 255, 0.35)' : this.colors.gridTickLine;
+                    ctx.lineWidth = (val === 0) ? 1 : 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(leftM, y);
+                    ctx.lineTo(leftM + activeW, y);
+                    ctx.stroke();
+                }
+
+                ctx.strokeStyle = (val === 0) ? this.colors.zeroLine : this.colors.axisLine;
+                ctx.lineWidth = (val === 0) ? 1.5 : 1;
+                ctx.beginPath();
+                ctx.moveTo(leftM - 5, y);
+                ctx.lineTo(leftM, y);
+                ctx.stroke();
+
+                ctx.fillStyle = (val === 0) ? this.colors.textBright : this.colors.text;
+                ctx.font = (val === 0) ? 'bold 10px monospace' : '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(`${val}`, leftM - 7, y + 3.5);
+            });
+        }
 
         ctx.restore();
     }
 
     _drawPressureTrack(ctx, track, leftM, activeW) {
-        const paddingBottom = 12;
-        const paddingTop = 28;
+        const paddingBottom = 10;
+        const paddingTop = 22;
         const bottomY = track.top + track.height - paddingBottom;
         const topY = track.top + paddingTop;
         const usableH = bottomY - topY;
         const rightEdge = leftM + activeW;
+        const pawMax = this.autoScale.paw ? this.dynamicScales.pawMax : this.fixedScales.pawMax;
 
         // 1. Tydelig bunnlinje (0 cmH2O)
         ctx.save();
@@ -566,7 +1073,7 @@ class WaveformRenderer {
 
         // 2. PEEP / EPAP referanselinje (subtil stiplet linje som viser grunntrykket)
         if (this.currentEpap > 0) {
-            const epapRatio = this.currentEpap / this.scales.pawMax;
+            const epapRatio = Math.min(1.0, this.currentEpap / pawMax);
             const epapY = bottomY - epapRatio * usableH;
             ctx.strokeStyle = this.colors.peepLine;
             ctx.lineWidth = 1;
@@ -579,29 +1086,42 @@ class WaveformRenderer {
         }
         ctx.restore();
 
-        // 3. Paw kurve med støtte for lilla trykk-trigger markering
+        // 3. Paw kurve: Min/Maks-konvolutt (C7)
         const toY = (paw) => {
-            const clamped = Math.max(0, Math.min(this.scales.pawMax, paw));
-            const ratio = clamped / this.scales.pawMax;
+            const clamped = Math.max(0, Math.min(pawMax, paw));
+            const ratio = clamped / pawMax;
             return bottomY - ratio * usableH;
         };
 
-        this._renderPressureWaveform(ctx, this.pressureData, this.pawTriggerData, toY, bottomY, leftM, activeW);
+        this._renderEnvelopeWaveform(
+            ctx,
+            this.pressureData,
+            toY,
+            this.colors.pressure,
+            this.colors.pressureFill,
+            bottomY,
+            leftM,
+            activeW,
+            0,
+            pawMax
+        );
 
-        // 4. Tegn Triggermarkører (▲) langs sekundlinjen ved pustestart
+        // 4. D3: Tegn Innsats- og Triggermarkører (▲, △, ⨂, ■) langs bunnen av Paw-sporet
         this._renderTriggerMarks(ctx, track.top + track.height - 2, leftM);
     }
 
     _drawFlowTrack(ctx, track, leftM, activeW) {
-        const paddingBottom = 12;
-        const paddingTop = 28;
+        const paddingBottom = 10;
+        const paddingTop = 22;
         const topY = track.top + paddingTop;
         const bottomY = track.top + track.height - paddingBottom;
         const zeroY = topY + (bottomY - topY) / 2;
         const halfH = (bottomY - topY) / 2;
         const rightEdge = leftM + activeW;
+        const flowMax = this.autoScale.flow ? this.dynamicScales.flowMax : this.fixedScales.flowMax;
+        const flowMin = -flowMax;
 
-        // Tydelig, markant og forsterket 0-linje for Flow (skille mellom innpust og utpust)
+        // Tydelig 0-linje for Flow
         ctx.save();
         ctx.strokeStyle = this.colors.zeroLine;
         ctx.lineWidth = 1.6;
@@ -612,22 +1132,38 @@ class WaveformRenderer {
         ctx.restore();
 
         const toY = (flow) => {
-            const clamped = Math.max(this.scales.flowMin, Math.min(this.scales.flowMax, flow));
-            const ratio = clamped / this.scales.flowMax; // -1 til +1
+            const clamped = Math.max(flowMin, Math.min(flowMax, flow));
+            const ratio = clamped / flowMax; // -1 til +1
             return zeroY - ratio * halfH;
         };
 
-        // Tegn Flow-kurven med areal-fylling og lilla trigger-markering
-        this._renderFlowWaveformWithArea(ctx, this.flowData, this.flowTriggerData, toY, zeroY, leftM, activeW);
+        // C7: Tegn Flow-kurven med min/maks-konvolutt og arealvisning (viser Q_meas)
+        this._renderFlowEnvelopeWithArea(ctx, this.flowData, toY, zeroY, leftM, activeW, flowMin, flowMax);
+
+        // Fase 3: Overlegg sann lungeflow (Q_lunge) som stiplet kurve hvis aktivert (A7)
+        if (this.showTrueCurves) {
+            this._renderOverlayDashedCurve(ctx, this.flowLungData, toY, this.colors.flowLung, leftM, activeW);
+
+            // Diskret etikett
+            ctx.save();
+            ctx.fillStyle = 'rgba(134, 239, 172, 0.85)';
+            ctx.font = '500 10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('--- Sann Q_lunge (pasient)', rightEdge - 8, topY + 12);
+            ctx.fillStyle = this.colors.flow;
+            ctx.fillText('— Q_meas (maskin)', rightEdge - 150, topY + 12);
+            ctx.restore();
+        }
     }
 
     _drawVolumeTrack(ctx, track, leftM, activeW) {
-        const paddingBottom = 12;
-        const paddingTop = 28;
+        const paddingBottom = 10;
+        const paddingTop = 22;
         const bottomY = track.top + track.height - paddingBottom;
         const topY = track.top + paddingTop;
         const usableH = bottomY - topY;
         const rightEdge = leftM + activeW;
+        const volMax = this.autoScale.vol ? this.dynamicScales.volMax : this.fixedScales.volMax;
 
         // Tydelig bunnlinje (0 ml)
         ctx.save();
@@ -640,152 +1176,115 @@ class WaveformRenderer {
         ctx.restore();
 
         const toY = (vol) => {
-            const clamped = Math.max(0, Math.min(this.scales.volMax, vol));
-            const ratio = clamped / this.scales.volMax;
+            const clamped = Math.max(0, Math.min(volMax, vol));
+            const ratio = clamped / volMax;
             return bottomY - ratio * usableH;
         };
 
-        this._renderWaveform(ctx, this.volumeData, toY, this.colors.volume, this.colors.volumeFill, bottomY, leftM, activeW);
+        // C7: Tegn maskinmålt volumkurve (V_meas) med min/maks-konvolutt
+        this._renderEnvelopeWaveform(
+            ctx,
+            this.volumeData,
+            toY,
+            this.colors.volume,
+            this.colors.volumeFill,
+            bottomY,
+            leftM,
+            activeW,
+            0,
+            volMax
+        );
+
+        // Fase 3: Overlegg sant lungevolum (V_lunge) som stiplet kurve hvis aktivert (A7)
+        if (this.showTrueCurves) {
+            this._renderOverlayDashedCurve(ctx, this.volumeLungData, toY, this.colors.volumeLung, leftM, activeW);
+
+            // Diskret etikett
+            ctx.save();
+            ctx.fillStyle = 'rgba(165, 243, 252, 0.85)';
+            ctx.font = '500 10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('--- Sant V_lunge (pasient)', rightEdge - 8, topY + 12);
+            ctx.fillStyle = this.colors.volume;
+            ctx.fillText('— V_meas (maskin)', rightEdge - 150, topY + 12);
+            ctx.restore();
+        }
     }
 
-    // Tegner Paw-kurve med støtte for lilla markering ved trykk-trigger (undertrykk under EPAP)
-    _renderPressureWaveform(ctx, data, triggerData, toYFn, baselineY, leftM, activeW) {
-        const sweepX = this.sweepX;
-        const eraseEnd = (sweepX + this.eraseWidth) % activeW;
+    // D3: Fjerde spor: Pes / Pmus (cmH₂O) med -P_mus konvensjon (innsats peker nedover)
+    _drawPesTrack(ctx, track, leftM, activeW) {
+        const paddingBottom = 10;
+        const paddingTop = 22;
+        const bottomY = track.top + track.height - paddingBottom;
+        const topY = track.top + paddingTop;
+        const usableH = bottomY - topY;
+        const rightEdge = leftM + activeW;
+        const pesMin = this.autoScale.pes ? this.dynamicScales.pesMin : this.fixedScales.pesMin;
+        const pesMax = this.autoScale.pes ? this.dynamicScales.pesMax : this.fixedScales.pesMax;
+        const pesRange = pesMax - pesMin;
 
+        // Beregn Y for 0 cmH2O linjen
+        const zeroRatio = (0 - pesMin) / pesRange;
+        const zeroY = bottomY - zeroRatio * usableH;
+
+        // Tydelig 0-linje for Pes / Pmus
         ctx.save();
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(leftM, zeroY);
+        ctx.lineTo(rightEdge, zeroY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
 
-        const drawSegment = (fromX, toX) => {
-            if (fromX >= toX) return;
-
-            // 1. Gul/Amber fylling mot bunnlinjen
-            ctx.save();
-            ctx.beginPath();
-            let started = false;
-            for (let x = fromX; x <= toX; x++) {
-                const val = data[x];
-                if (val !== null && val !== undefined) {
-                    const screenX = leftM + x;
-                    const screenY = toYFn(val);
-                    if (!started) {
-                        ctx.moveTo(screenX, baselineY);
-                        ctx.lineTo(screenX, screenY);
-                        started = true;
-                    } else {
-                        ctx.lineTo(screenX, screenY);
-                    }
-                }
-            }
-            if (started) {
-                ctx.lineTo(leftM + toX, baselineY);
-                ctx.closePath();
-                ctx.fillStyle = this.colors.pressureFill;
-                ctx.fill();
-            }
-            ctx.restore();
-
-            // 2. Tegn Paw kurvelinje med fargeskifte til lilla ved trykk-trigger
-            let currentIsTrig = null;
-            let pathStarted = false;
-
-            for (let x = fromX; x <= toX; x++) {
-                const val = data[x];
-                if (val === null || val === undefined) {
-                    if (pathStarted) {
-                        ctx.stroke();
-                        pathStarted = false;
-                        currentIsTrig = null;
-                    }
-                    continue;
-                }
-
-                const isTrig = !!triggerData[x];
-                const screenX = leftM + x;
-                const screenY = toYFn(val);
-
-                if (!pathStarted) {
-                    ctx.beginPath();
-                    ctx.strokeStyle = isTrig ? this.colors.flowTrigger : this.colors.pressure;
-                    ctx.lineWidth = isTrig ? 2.6 : 2.2;
-                    ctx.moveTo(screenX, screenY);
-                    pathStarted = true;
-                    currentIsTrig = isTrig;
-                } else if (isTrig !== currentIsTrig) {
-                    ctx.lineTo(screenX, screenY);
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.strokeStyle = isTrig ? this.colors.flowTrigger : this.colors.pressure;
-                    ctx.lineWidth = isTrig ? 2.6 : 2.2;
-                    ctx.moveTo(screenX, screenY);
-                    currentIsTrig = isTrig;
-                } else {
-                    ctx.lineTo(screenX, screenY);
-                }
-            }
-            if (pathStarted) {
-                ctx.stroke();
-            }
+        const toY = (val) => {
+            const clamped = Math.max(pesMin, Math.min(pesMax, val));
+            const ratio = (clamped - pesMin) / pesRange;
+            return bottomY - ratio * usableH;
         };
 
-        if (sweepX + this.eraseWidth < activeW) {
-            drawSegment(0, Math.floor(sweepX));
-            drawSegment(Math.floor(sweepX + this.eraseWidth), activeW - 1);
-        } else {
-            drawSegment(Math.floor(eraseEnd), Math.floor(sweepX));
-        }
-
-        ctx.restore();
+        // Tegn Pes-kurve med min/maks-konvolutt og fylling mot 0-linjen
+        this._renderEnvelopeWaveform(
+            ctx,
+            this.pesData,
+            toY,
+            this.colors.pes,
+            this.colors.pesFill,
+            zeroY,
+            leftM,
+            activeW,
+            pesMin,
+            pesMax
+        );
     }
 
-    // Tegner standard kurve (Paw eller Volum) med ren linje og valgfri subtil fylling
-    _renderWaveform(ctx, data, toYFn, strokeColor, fillColor, baselineY, leftM, activeW) {
+    // C7 & C9: Tegner min/maks-konvolutt for Paw, Volum eller Pes med klippe-indikator
+    _renderEnvelopeWaveform(ctx, data, toYFn, strokeColor, fillColor, baselineY, leftM, activeW, minLimit, maxLimit) {
         const sweepX = this.sweepX;
-        const eraseStart = sweepX;
         const eraseEnd = (sweepX + this.eraseWidth) % activeW;
 
         ctx.save();
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = 2.0;
         ctx.strokeStyle = strokeColor;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
 
         const drawSegment = (fromX, toX) => {
             if (fromX >= toX) return;
-            let drawing = false;
 
-            // Tegn kurvelinje
-            ctx.beginPath();
-            for (let x = fromX; x <= toX; x++) {
-                const val = data[x];
-                if (val !== null && val !== undefined) {
-                    const screenX = leftM + x;
-                    const screenY = toYFn(val);
-                    if (!drawing) {
-                        ctx.moveTo(screenX, screenY);
-                        drawing = true;
-                    } else {
-                        ctx.lineTo(screenX, screenY);
-                    }
-                } else {
-                    drawing = false;
-                }
-            }
-            ctx.stroke();
-
-            // Tegn subtil fylling mot grunnlinjen
-            if (fillColor && drawing) {
+            // 1. Fylling mot grunnlinjen / 0-linjen
+            if (fillColor) {
                 ctx.save();
                 ctx.fillStyle = fillColor;
                 ctx.beginPath();
                 let started = false;
                 for (let x = fromX; x <= toX; x++) {
-                    const val = data[x];
-                    if (val !== null && val !== undefined) {
+                    const pt = data[x];
+                    if (pt) {
                         const screenX = leftM + x;
-                        const screenY = toYFn(val);
+                        const screenY = toYFn(pt.last);
                         if (!started) {
                             ctx.moveTo(screenX, baselineY);
                             ctx.lineTo(screenX, screenY);
@@ -802,90 +1301,58 @@ class WaveformRenderer {
                 }
                 ctx.restore();
             }
-        };
 
-        if (eraseStart + this.eraseWidth < activeW) {
-            drawSegment(0, Math.floor(sweepX));
-            drawSegment(Math.floor(sweepX + this.eraseWidth), activeW - 1);
-        } else {
-            drawSegment(Math.floor(eraseEnd), Math.floor(sweepX));
-        }
-
-        ctx.restore();
-    }
-
-    // Tegner Flow-kurve med distinkt areal-fylling over og under 0-linjen og lilla trigger-markering
-    _renderFlowWaveformWithArea(ctx, data, triggerData, toYFn, zeroY, leftM, activeW) {
-        const sweepX = this.sweepX;
-        const eraseEnd = (sweepX + this.eraseWidth) % activeW;
-
-        ctx.save();
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-
-        const drawSegment = (fromX, toX) => {
-            if (fromX >= toX) return;
-
-            // 1. Tegn areal-fylling (Inspirasjon over 0-linje og Ekspirasjon under 0-linje)
-            for (let x = fromX; x <= toX; x++) {
-                const val = data[x];
-                if (val !== null && val !== undefined && Math.abs(val) > 0.5) {
-                    const screenX = leftM + x;
-                    const screenY = toYFn(val);
-                    const isTrig = !!triggerData[x];
-
-                    if (val > 0) {
-                        ctx.fillStyle = isTrig ? this.colors.flowFillTrigger : this.colors.flowFillPos;
-                    } else {
-                        ctx.fillStyle = this.colors.flowFillNeg;
-                    }
-                    ctx.fillRect(screenX, Math.min(zeroY, screenY), 1.2, Math.abs(screenY - zeroY));
-                }
-            }
-
-            // 2. Tegn selve kurvelinjen med fargeskifte til lilla under triggerfasen
-            let currentIsTrig = null;
-            let pathStarted = false;
+            // 2. Selve kurvelinjen med min/maks vertikalstrek (C7)
+            ctx.beginPath();
+            let drawing = false;
+            const clippedPoints = [];
 
             for (let x = fromX; x <= toX; x++) {
-                const val = data[x];
-                if (val === null || val === undefined) {
-                    if (pathStarted) {
-                        ctx.stroke();
-                        pathStarted = false;
-                        currentIsTrig = null;
-                    }
+                const pt = data[x];
+                if (!pt) {
+                    drawing = false;
                     continue;
                 }
 
-                const isTrig = !!triggerData[x];
                 const screenX = leftM + x;
-                const screenY = toYFn(val);
+                const yMin = toYFn(pt.max); // Toppverdi (høyere tall = mindre Y)
+                const yMax = toYFn(pt.min); // Bunnverdi (lavere tall = større Y)
+                const yLast = toYFn(pt.last);
 
-                if (!pathStarted) {
-                    ctx.beginPath();
-                    ctx.strokeStyle = isTrig ? this.colors.flowTrigger : this.colors.flow;
-                    ctx.lineWidth = isTrig ? 2.6 : 2.2;
-                    ctx.moveTo(screenX, screenY);
-                    pathStarted = true;
-                    currentIsTrig = isTrig;
-                } else if (isTrig !== currentIsTrig) {
-                    // Sømløs overgang: trekk nåværende fargelinje helt fram til dette punktet
-                    ctx.lineTo(screenX, screenY);
-                    ctx.stroke();
+                // C9: Registrer klipping hvis verdien overskrider skalaen i låst modus
+                if (maxLimit !== undefined && pt.max > maxLimit + 0.5) {
+                    clippedPoints.push({ x: screenX, y: toYFn(maxLimit), dir: 'top' });
+                }
+                if (minLimit !== undefined && pt.min < minLimit - 0.5) {
+                    clippedPoints.push({ x: screenX, y: toYFn(minLimit), dir: 'bottom' });
+                }
 
-                    // Start ny linje med ny farge fra nøyaktig samme punkt
-                    ctx.beginPath();
-                    ctx.strokeStyle = isTrig ? this.colors.flowTrigger : this.colors.flow;
-                    ctx.lineWidth = isTrig ? 2.6 : 2.2;
-                    ctx.moveTo(screenX, screenY);
-                    currentIsTrig = isTrig;
+                // C7: Der maks - min > 1 piksel, tegn vertikal strek for å fange opp spiken
+                if (Math.abs(yMax - yMin) > 1.2) {
+                    if (!drawing) {
+                        ctx.moveTo(screenX, yMin);
+                        drawing = true;
+                    } else {
+                        ctx.lineTo(screenX, yMin);
+                    }
+                    ctx.lineTo(screenX, yMax);
+                    ctx.lineTo(screenX, yLast);
                 } else {
-                    ctx.lineTo(screenX, screenY);
+                    if (!drawing) {
+                        ctx.moveTo(screenX, yLast);
+                        drawing = true;
+                    } else {
+                        ctx.lineTo(screenX, yLast);
+                    }
                 }
             }
-            if (pathStarted) {
+            if (drawing) {
                 ctx.stroke();
+            }
+
+            // C9: Tegn visuelle klippe-markører
+            if (clippedPoints.length > 0) {
+                this._renderClipMarkers(ctx, clippedPoints);
             }
         };
 
@@ -899,17 +1366,224 @@ class WaveformRenderer {
         ctx.restore();
     }
 
-    // Tegner små Hamilton-stil triggermarkører (▲) ved pustestart
+    // C7 & C9: Tegner Flow-kurve med min/maks-konvolutt og distinkt arealfylling (+/-)
+    _renderFlowEnvelopeWithArea(ctx, data, toYFn, zeroY, leftM, activeW, minLimit, maxLimit) {
+        const sweepX = this.sweepX;
+        const eraseEnd = (sweepX + this.eraseWidth) % activeW;
+
+        ctx.save();
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        const drawSegment = (fromX, toX) => {
+            if (fromX >= toX) return;
+
+            // 1. Tegn areal-fylling (Inspirasjon over 0-linje og Ekspirasjon under 0-linje)
+            for (let x = fromX; x <= toX; x++) {
+                const pt = data[x];
+                if (pt && Math.abs(pt.last) > 0.5) {
+                    const screenX = leftM + x;
+                    const screenY = toYFn(pt.last);
+
+                    if (pt.last > 0) {
+                        ctx.fillStyle = this.colors.flowFillPos;
+                    } else {
+                        ctx.fillStyle = this.colors.flowFillNeg;
+                    }
+                    ctx.fillRect(screenX, Math.min(zeroY, screenY), 1.2, Math.abs(screenY - zeroY));
+                }
+            }
+
+            // 2. Tegn selve kurvelinjen med min/maks-konvolutt
+            ctx.beginPath();
+            ctx.strokeStyle = this.colors.flow;
+            ctx.lineWidth = 2.0;
+            let drawing = false;
+            const clippedPoints = [];
+
+            for (let x = fromX; x <= toX; x++) {
+                const pt = data[x];
+                if (!pt) {
+                    drawing = false;
+                    continue;
+                }
+
+                const screenX = leftM + x;
+                const yMin = toYFn(pt.max);
+                const yMax = toYFn(pt.min);
+                const yLast = toYFn(pt.last);
+
+                // C9: Klippeindikator
+                if (maxLimit !== undefined && pt.max > maxLimit + 0.5) {
+                    clippedPoints.push({ x: screenX, y: toYFn(maxLimit), dir: 'top' });
+                }
+                if (minLimit !== undefined && pt.min < minLimit - 0.5) {
+                    clippedPoints.push({ x: screenX, y: toYFn(minLimit), dir: 'bottom' });
+                }
+
+                if (Math.abs(yMax - yMin) > 1.2) {
+                    if (!drawing) {
+                        ctx.moveTo(screenX, yMin);
+                        drawing = true;
+                    } else {
+                        ctx.lineTo(screenX, yMin);
+                    }
+                    ctx.lineTo(screenX, yMax);
+                    ctx.lineTo(screenX, yLast);
+                } else {
+                    if (!drawing) {
+                        ctx.moveTo(screenX, yLast);
+                        drawing = true;
+                    } else {
+                        ctx.lineTo(screenX, yLast);
+                    }
+                }
+            }
+            if (drawing) {
+                ctx.stroke();
+            }
+
+            if (clippedPoints.length > 0) {
+                this._renderClipMarkers(ctx, clippedPoints);
+            }
+        };
+
+        if (sweepX + this.eraseWidth < activeW) {
+            drawSegment(0, Math.floor(sweepX));
+            drawSegment(Math.floor(sweepX + this.eraseWidth), activeW - 1);
+        } else {
+            drawSegment(Math.floor(eraseEnd), Math.floor(sweepX));
+        }
+
+        ctx.restore();
+    }
+
+    // C9: Tydelig klippe-indikator ved akselås (viser at kurven overskrider skalaen)
+    _renderClipMarkers(ctx, clippedPoints) {
+        ctx.save();
+        ctx.fillStyle = this.colors.clipIndicator;
+        ctx.strokeStyle = this.colors.clipIndicator;
+        ctx.lineWidth = 1.5;
+
+        clippedPoints.forEach(p => {
+            // Liten lysende trekant/pil ved kanten
+            ctx.beginPath();
+            if (p.dir === 'top') {
+                ctx.moveTo(p.x - 2.5, p.y + 5);
+                ctx.lineTo(p.x + 2.5, p.y + 5);
+                ctx.lineTo(p.x, p.y);
+            } else {
+                ctx.moveTo(p.x - 2.5, p.y - 5);
+                ctx.lineTo(p.x + 2.5, p.y - 5);
+                ctx.lineTo(p.x, p.y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        });
+        ctx.restore();
+    }
+
+    // Tegner overlagt stiplet kurve (A7: Sann lungeflow / volum)
+    _renderOverlayDashedCurve(ctx, data, toYFn, strokeColor, leftM, activeW) {
+        const sweepX = this.sweepX;
+        const eraseEnd = (sweepX + this.eraseWidth) % activeW;
+
+        ctx.save();
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = strokeColor;
+        ctx.setLineDash([4, 4]);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        const drawSegment = (fromX, toX) => {
+            if (fromX >= toX) return;
+            let drawing = false;
+
+            ctx.beginPath();
+            for (let x = fromX; x <= toX; x++) {
+                const pt = data[x];
+                if (pt) {
+                    const screenX = leftM + x;
+                    const screenY = toYFn(pt.last);
+                    if (!drawing) {
+                        ctx.moveTo(screenX, screenY);
+                        drawing = true;
+                    } else {
+                        ctx.lineTo(screenX, screenY);
+                    }
+                } else {
+                    drawing = false;
+                }
+            }
+            ctx.stroke();
+        };
+
+        if (sweepX + this.eraseWidth < activeW) {
+            drawSegment(0, Math.floor(sweepX));
+            drawSegment(Math.floor(sweepX + this.eraseWidth), activeW - 1);
+        } else {
+            drawSegment(Math.floor(eraseEnd), Math.floor(sweepX));
+        }
+
+        ctx.restore();
+    }
+
+    // D3: Tegner de 4 entydige markørtypene (▲, △, ⨂, ■)
     _renderTriggerMarks(ctx, yPos, leftM) {
         ctx.save();
-        ctx.fillStyle = this.colors.triggerMark;
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
+        const size = 5.5;
 
         for (let x = 0; x < this.activeWidth; x++) {
-            if (this.triggerData[x]) {
-                const screenX = leftM + x;
-                ctx.fillText('▲', screenX, yPos);
+            const m = this.markerData[x];
+            if (!m) continue;
+
+            const screenX = leftM + x;
+            const type = m.type || 'assist';
+
+            if (type === 'assist' || type === 'double') {
+                // 1. Fylt trekant ▲ (Assistert / pasientutløst pust)
+                ctx.fillStyle = this.colors.triggerMark;
+                ctx.beginPath();
+                ctx.moveTo(screenX, yPos - size);
+                ctx.lineTo(screenX - size * 0.85, yPos + size * 0.65);
+                ctx.lineTo(screenX + size * 0.85, yPos + size * 0.65);
+                ctx.closePath();
+                ctx.fill();
+            } else if (type === 'missed') {
+                // 2. Åpen trekant △ (Mislykket pasientinnsats / missed effort)
+                ctx.strokeStyle = this.colors.triggerMark;
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.moveTo(screenX, yPos - size);
+                ctx.lineTo(screenX - size * 0.85, yPos + size * 0.65);
+                ctx.lineTo(screenX + size * 0.85, yPos + size * 0.65);
+                ctx.closePath();
+                ctx.stroke();
+            } else if (type === 'auto') {
+                // 3. Trekant med kryss ⨂ (Autotrigger - pust uten pasientinnsats)
+                ctx.strokeStyle = this.colors.triggerMark;
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.moveTo(screenX, yPos - size);
+                ctx.lineTo(screenX - size * 0.85, yPos + size * 0.65);
+                ctx.lineTo(screenX + size * 0.85, yPos + size * 0.65);
+                ctx.closePath();
+                ctx.stroke();
+
+                // Kryss inne i / over trekanten
+                const cs = size * 0.45;
+                const cy = yPos + size * 0.1;
+                ctx.beginPath();
+                ctx.moveTo(screenX - cs, cy - cs);
+                ctx.lineTo(screenX + cs, cy + cs);
+                ctx.moveTo(screenX + cs, cy - cs);
+                ctx.lineTo(screenX - cs, cy + cs);
+                ctx.stroke();
+            } else if (type === 'mandatory') {
+                // 4. Kvadrat ■ (Maskinutløst backup-pust)
+                ctx.fillStyle = this.colors.triggerMark;
+                const half = size * 0.7;
+                ctx.fillRect(screenX - half, yPos - half, half * 2, half * 2);
             }
         }
         ctx.restore();
