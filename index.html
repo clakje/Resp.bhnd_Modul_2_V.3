@@ -56,34 +56,24 @@
                     <div id="alarmList" class="alarm-list"></div>
                 </div>
 
-                <!-- Monitor Verktøylinje (C8: Sveipetid, D3: Pes 4. spor, C9: Lås/Auto skala) -->
+                <!-- Monitor Verktøylinje (C8: Sveipetid, C9: Lås/Auto skala) -->
                 <div class="monitor-toolbar">
                     <div class="toolbar-group">
                         <span class="toolbar-label">Sveipetid:</span>
                         <div class="btn-group-pill" id="sweepBtnGroup">
-                            <button type="button" class="btn-pill" id="btnSweep6" data-sweep="6" title="Lupevisning (6s) for kurvedetaljer, stigetid og spiker">6 s (Lupe)</button>
-                            <button type="button" class="btn-pill active" id="btnSweep10" data-sweep="10" title="Standard klinisk sveipetid (10s)">10 s (Std)</button>
-                            <button type="button" class="btn-pill" id="btnSweep15" data-sweep="15" title="Oversiktsvisning (15s) for mønster, autotrigging og asynkroni">15 s (Oversikt)</button>
+                            <span class="btn-pill active" id="btnSweep15" data-sweep="15" title="Sveipetid er låst til 15 sekunder" style="cursor: default;">🔒 15 s</span>
                         </div>
-                    </div>
-
-                    <div class="toolbar-group">
-                        <span class="toolbar-label">4. spor:</span>
-                        <button type="button" class="btn-pill active" id="btnTogglePes" title="Vis eller skjul det 4. sporet: Øsofagustrykk / Pleuratrykk (Pes / Pmus)">
-                            <span class="pes-dot">●</span> <span>Pes / P<sub>mus</sub></span>
-                        </button>
                     </div>
 
                     <div class="toolbar-group">
                         <span class="toolbar-label">Y-skala:</span>
                         <div class="btn-group-pill" id="scaleBtnGroup">
-                            <button type="button" class="btn-pill active" id="btnScaleLocked" title="Lås til faste kliniske skalaer (Paw 0–40, Flow ±120, Vol 0–800, Pes -25..+5)">🔒 Lås</button>
-                            <button type="button" class="btn-pill" id="btnScaleAuto" title="Automatisk skalering tilpasset kurvetoppene">🔄 Auto</button>
+                            <span class="btn-pill active" id="btnScaleAuto" title="Automatisk skalering med faste minimumsgrenser (Gul min 15 cmH₂O, Grønn min ±30 L/min, Blå min 200 ml)" style="cursor: default;">🔄 Auto</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Canvas med de 3 eller 4 kurvene -->
+                <!-- Canvas med de 3 kurvene (Paw, Flow, Volum) -->
                 <div class="canvas-container">
                     <canvas id="waveformCanvas"></canvas>
                 </div>
@@ -258,8 +248,11 @@
                     <button class="preset-btn scenario-btn active" data-scenario="wellAdjusted" id="scenWellAdjusted" title="Godt tilpasset NIV (Referansebilde)">
                         <span>✅</span> Godt tilpasset NIV
                     </button>
-                    <button class="preset-btn scenario-btn" data-scenario="slowTrigger" id="scenSlowTrigger" title="Trigger for treg (Mislykkede innsatser / buler i flow)">
-                        <span>🐢</span> Trigger for treg
+                    <button class="preset-btn scenario-btn" data-scenario="mildlySedated" id="scenMildlySedated" title="Lungefrisk, lett sedert pasient (Redusert drive, stabilt pustemønster)">
+                        <span>😴</span> Lungefrisk, lett sedert
+                    </button>
+                    <button class="preset-btn scenario-btn" data-scenario="slowTrigger" id="scenSlowTrigger" title="For høy triggersensitivitet (Mislykkede innsatser / ufølsom trigger)">
+                        <span>🐢</span> For høy triggersensitivitet
                     </button>
                     <button class="preset-btn scenario-btn" data-scenario="autotrigger" id="scenAutotrigger" title="Autotrigging pga. lekkasje og følsom trigger">
                         <span>⚡</span> Autotrigging
@@ -292,7 +285,7 @@
             <div class="preset-bar">
                 <span class="preset-title">Kliniske Pasientprofiler:</span>
                 <button class="preset-btn active" data-preset="normal" id="presetNormal">
-                    <span>🫁</span> Normal Lunge
+                    <span>🫁</span> Frisk pasient (Normal)
                 </button>
                 <button class="preset-btn" data-preset="copd" id="presetCopd">
                     <span>⚠️</span> KOLS (Obstruktiv)
@@ -340,16 +333,16 @@
                                     <div class="control-label" id="labelPressureMode">IPAP (Inspiratorisk trykk)</div>
                                     <div class="control-sublabel" id="sublabelPressureMode">Trykkstøtte levert under innpust</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeIpap">14 cmH₂O (ΔP 9)</span>
+                                <span class="control-value-pill" id="badgeIpap">8 cmH₂O (ΔP 3)</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderIpap" data-step="-1">-</button>
-                                <input type="range" id="sliderIpap" min="8" max="30" step="1" value="14">
+                                <input type="range" id="sliderIpap" min="8" max="30" step="1" value="8">
                                 <button class="step-btn" data-target="sliderIpap" data-step="1">+</button>
                             </div>
                             <div class="slider-limits">
                                 <span>8 cmH₂O</span>
-                                <span id="labelDeltaPInfo" style="color: var(--color-accent); font-weight: 600;">ΔP over PEEP: 9 cmH₂O</span>
+                                <span id="labelDeltaPInfo" style="color: var(--color-accent); font-weight: 600;">ΔP over PEEP: 3 cmH₂O</span>
                                 <span>30 cmH₂O</span>
                             </div>
                         </div>
@@ -449,11 +442,11 @@
                                     <div class="control-label">Innstilt frekvens (Rate / A/C)</div>
                                     <div class="control-sublabel">Maskinens kontrollfrekvens ved PC-modus</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeRR">15 /min</span>
+                                <span class="control-value-pill" id="badgeRR">12 /min</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderRR" data-step="-1">-</button>
-                                <input type="range" id="sliderRR" min="8" max="35" step="1" value="15">
+                                <input type="range" id="sliderRR" min="8" max="35" step="1" value="12">
                                 <button class="step-btn" data-target="sliderRR" data-step="1">+</button>
                             </div>
                             <div class="slider-limits">
@@ -473,12 +466,12 @@
                                     <button class="btn-toggle active" id="btnTrigModeFlow" data-mode="flow">Flow</button>
                                     <button class="btn-toggle" id="btnTrigModePressure" data-mode="pressure">Trykk</button>
                                 </div>
-                                <span class="control-value-pill" id="badgeTrigger" style="color: var(--color-flow-trigger); border-color: rgba(217, 70, 239, 0.4);">3.0 L/min</span>
+                                <span class="control-value-pill" id="badgeTrigger" style="color: var(--color-flow-trigger); border-color: rgba(217, 70, 239, 0.4);">1.5 L/min</span>
                             </div>
 
                             <div class="slider-wrapper" style="margin-top: 8px;">
                                 <button class="step-btn" id="btnTrigStepDown" data-target="sliderTrigger" data-step="-0.5">-</button>
-                                <input type="range" id="sliderTrigger" min="1" max="5" step="0.5" value="3">
+                                <input type="range" id="sliderTrigger" min="1" max="5" step="0.5" value="1.5">
                                 <button class="step-btn" id="btnTrigStepUp" data-target="sliderTrigger" data-step="0.5">+</button>
                             </div>
                             <div class="slider-limits">
@@ -569,11 +562,11 @@
                                     <div class="control-label">Spontan frekvens (rrSpont)</div>
                                     <div class="control-sublabel">Pasientens egen respirasjonsfrekvens (0 = apné/passiv)</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeRrSpont">14 /min</span>
+                                <span class="control-value-pill" id="badgeRrSpont">12 /min</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderRrSpont" data-step="-1">-</button>
-                                <input type="range" id="sliderRrSpont" min="0" max="40" step="1" value="14">
+                                <input type="range" id="sliderRrSpont" min="0" max="40" step="1" value="12">
                                 <button class="step-btn" data-target="sliderRrSpont" data-step="1">+</button>
                             </div>
                             <div class="slider-limits">
@@ -586,14 +579,14 @@
                         <div class="control-card" id="cardPmus">
                             <div class="control-header">
                                 <div>
-                                    <div class="control-label">Inspiratorisk kraft (P<sub>mus,max</sub>)</div>
-                                    <div class="control-sublabel">Maksimal egeninnsats under innpust</div>
+                                    <div class="control-label">Inspiratorisk kraft (P<sub>mus,insp</sub>)</div>
+                                    <div class="control-sublabel">Pasientens egeninnsats under innpust (Normal 5 cmH₂O, P<sub>mus,max</sub> kap. 100 cmH₂O)</div>
                                 </div>
-                                <span class="control-value-pill" id="badgePmus">3.0 cmH₂O</span>
+                                <span class="control-value-pill" id="badgePmus">5.0 cmH₂O</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderPmus" data-step="-0.5">-</button>
-                                <input type="range" id="sliderPmus" min="0" max="20" step="0.5" value="3">
+                                <input type="range" id="sliderPmus" min="0" max="20" step="0.5" value="5">
                                 <button class="step-btn" data-target="sliderPmus" data-step="0.5">+</button>
                             </div>
                             <div class="slider-limits">
@@ -609,11 +602,11 @@
                                     <div class="control-label">Nevral inspirasjonstid (Ti<sub>neural</sub>)</div>
                                     <div class="control-sublabel">Varighet av pasientens nevrale innpust</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeTiNeural">0.90 s</span>
+                                <span class="control-value-pill" id="badgeTiNeural">1.00 s</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderTiNeural" data-step="-0.05">-</button>
-                                <input type="range" id="sliderTiNeural" min="0.4" max="1.6" step="0.05" value="0.9">
+                                <input type="range" id="sliderTiNeural" min="0.4" max="1.6" step="0.05" value="1.0">
                                 <button class="step-btn" data-target="sliderTiNeural" data-step="0.05">+</button>
                             </div>
                             <div class="slider-limits">
@@ -668,17 +661,17 @@
                             <div class="control-header">
                                 <div>
                                     <div class="control-label">Ekspiratorisk motstandsforhold (R<sub>exp</sub>/R<sub>insp</sub>)</div>
-                                    <div class="control-sublabel">Trangere luftveier ut enn inn (1.0–3.0×) + ventil (2 cmH₂O/(L/s))</div>
+                                    <div class="control-sublabel">Symmetrisk eller trangere luftveier ut enn inn (1.0–3.0×) + ventil (2 cmH₂O/(L/s))</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeExpRatio">1.5 ×</span>
+                                <span class="control-value-pill" id="badgeExpRatio">1.0 ×</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderExpRatio" data-step="-0.1">-</button>
-                                <input type="range" id="sliderExpRatio" min="1.0" max="3.0" step="0.1" value="1.5">
+                                <input type="range" id="sliderExpRatio" min="1.0" max="3.0" step="0.1" value="1.0">
                                 <button class="step-btn" data-target="sliderExpRatio" data-step="0.1">+</button>
                             </div>
                             <div class="slider-limits">
-                                <span>1.0 × (Symmetrisk)</span>
+                                <span>1.0 × (Symmetrisk: Rexp = Rinsp = 5)</span>
                                 <span>1.5 × (Fysiologisk normal)</span>
                                 <span>3.0 × (Høy)</span>
                             </div>
@@ -691,11 +684,11 @@
                                     <div class="control-label">Pustevariasjon (Variability)</div>
                                     <div class="control-sublabel">Tilfeldig variasjon i frekvens og kraft per pust</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeVariability">10 %</span>
+                                <span class="control-value-pill" id="badgeVariability">15 %</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderVariability" data-step="-2">-</button>
-                                <input type="range" id="sliderVariability" min="0" max="30" step="1" value="10">
+                                <input type="range" id="sliderVariability" min="0" max="30" step="1" value="15">
                                 <button class="step-btn" data-target="sliderVariability" data-step="2">+</button>
                             </div>
                             <div class="slider-limits">
@@ -731,11 +724,11 @@
                                     <div class="control-label">Compliance (Ettergivelighet, C)</div>
                                     <div class="control-sublabel">Lavere = stivere lunger (f.eks. ødem/pneumoni)</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeCompliance">50 ml/cmH₂O</span>
+                                <span class="control-value-pill" id="badgeCompliance">90 ml/cmH₂O</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderCompliance" data-step="-5">-</button>
-                                <input type="range" id="sliderCompliance" min="15" max="100" step="1" value="50">
+                                <input type="range" id="sliderCompliance" min="15" max="100" step="1" value="90">
                                 <button class="step-btn" data-target="sliderCompliance" data-step="5">+</button>
                             </div>
                             <div class="slider-limits">
@@ -1029,18 +1022,7 @@
                             </div>
                         </div>
 
-                        <!-- 4. Pes / Pmus (D3) -->
-                        <div class="control-card" style="border-left: 3px solid #d946ef;">
-                            <div class="control-header">
-                                <div class="control-label" style="color: #d946ef;">🟣 4. spor: Øsofagustrykk (Pes / P<sub>mus</sub> [cmH₂O])</div>
-                            </div>
-                            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-                                <p>• <strong>Pleuratrykk-konvensjon:</strong> Innsats peker <em>nedover</em> (-P<sub>mus</sub>) som i kliniske referansefigurer.</p>
-                                <p>• <strong>Den skjulte sannheten:</strong> Avslører pasientens faktiske pustearbeid. Skiller <em>pasienten prøver ikke (apné)</em> fra <em>pasienten prøver, men maskinen ser det ikke (ineffektiv trigger/Auto-PEEP)</em>.</p>
-                            </div>
-                        </div>
-
-                        <!-- 5. Tegnforklaring Triggermarkører (D3) -->
+                        <!-- Tegnforklaring Triggermarkører -->
                         <div class="control-card" style="grid-column: 1 / -1; border-left: 3px solid #d946ef; background: rgba(217, 70, 239, 0.04);">
                             <div class="control-header">
                                 <div class="control-label" style="color: #f0abfc; display: flex; align-items: center; gap: 8px;">
@@ -1073,10 +1055,8 @@
                                 <div class="control-label" style="color: var(--color-accent);">⏱️ Sveipetid & Akseskalering (C8 & C9)</div>
                             </div>
                             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-                                <p>• <strong>6 s (Lupevisning):</strong> Høy tidsmessig oppløsning for nøyaktig analyse av kurveformer: stigetid, trykkoversving (overshoot), cycling og terminale trykk-spikes.</p>
-                                <p>• <strong>10 s (Klinisk standard):</strong> Balansert sanntidsvisning tilsvarende referanserespiratorer ved sengeleiet.</p>
-                                <p>• <strong>15 s (Mønsteroversikt):</strong> Bred oversikt over flere pustesykluser for å oppdage mønstre over tid, som periodisk autotrigging, ujevn pusterytme og akkumulert hyperinflasjon.</p>
-                                <p>• <strong>Låste skalaer (Standard):</strong> Faste kliniske akser (Paw 0–40 cmH₂O, Flow ±120 L/min, Volum 0–800 ml) sikrer at pust med ulike volumer (f.eks. 350 ml vs 550 ml) har **tydelig ulik høyde** på skjermen, slik at fysiologiske endringer kan sammenlignes direkte.</p>
+                                <p>• <strong>15 s (Mønsteroversikt):</strong> Fast sveipetid på 15 sekunder gir bred oversikt over flere pustesykluser for å oppdage mønstre over tid, som periodisk autotrigging, ujevn pusterytme og akkumulert hyperinflasjon.</p>
+                                <p>• <strong>Automatisk Y-skalering (Standard):</strong> Y-aksene tilpasser seg automatisk kurvetoppene med klinisk trygge minimumsgrenser (Gul/Paw min 15 cmH₂O, Grønn/Flow min ±30 L/min, Blå/Volum min 200 ml). Dette sikrer at kurvene forblir lettleste og aldri klippes av aksene.</p>
                             </div>
                         </div>
 

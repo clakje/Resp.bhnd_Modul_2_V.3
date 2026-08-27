@@ -280,7 +280,7 @@ body {
 }
 
 /* ==========================================================================
-   Monitor Verktøylinje (C8 Sveipetid, D3 Pes toggle, C9 Akselås)
+   Monitor Verktøylinje (C8 Sveipetid, C9 Akselås)
    ========================================================================== */
 .monitor-toolbar {
     display: flex;
@@ -344,25 +344,6 @@ body {
     background: linear-gradient(135deg, #0284c7, #0369a1);
     color: #ffffff;
     box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
-}
-
-#btnTogglePes {
-    border: 1px solid var(--border-color);
-    background: var(--bg-dark);
-    border-radius: 6px;
-    padding: 4px 10px;
-}
-
-#btnTogglePes.active {
-    background: rgba(217, 70, 239, 0.18);
-    border-color: #d946ef;
-    color: #f0abfc;
-    box-shadow: 0 0 8px rgba(217, 70, 239, 0.35);
-}
-
-.pes-dot {
-    color: #d946ef;
-    font-size: 10px;
 }
 
 .canvas-container {

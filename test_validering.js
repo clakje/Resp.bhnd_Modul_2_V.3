@@ -170,6 +170,7 @@ function simSec(sim, seconds, dt = 0.016) {
     sim.settings.leak = 0;
     sim.settings.ipap = 15;
     sim.settings.epap = 5;
+    sim.patientDrive.pmusMax = 0;
     sim.patientDrive.rrSpont = 12;
     sim.reset();
 
@@ -385,15 +386,19 @@ function simSec(sim, seconds, dt = 0.016) {
 })();
 
 // -----------------------------------------------------------------------------
-// E12: Pmus 2, trigger 5 L/min (svak pasientinnsats vs høy trigger)
+// E12: Pmus 2-3, trigger 5 L/min (svak pasientinnsats vs høy trigger)
 // Forventet: Mislykkede innsatser (missed efforts) med synlig avtrykk
 // Toleranse: Må forekomme
 // -----------------------------------------------------------------------------
 (() => {
     const sim = new VentilatorSimulator();
-    sim.patientDrive.rrSpont = 15;
-    sim.patientDrive.pmusMax = 0.3; // svak innsats (gir ca 3.6 L/min flow ved R 5)
-    sim.settings.triggerFlow = 5.0; // høy terskel 5 L/min > pasientflow
+    sim.patientDrive.rrSpont = 12;
+    sim.patient.compliance = 90;
+    sim.patient.resistance = 5;
+    sim.patient.expRatio = 1.0;
+    sim.patientDrive.pmusMax = 0.75; // gir ca 3.8 L/min triggerflow
+    sim.settings.triggerFlow = 5.0;  // høy terskel 5 L/min > pasientflow
+    sim.settings.stActive = false;   // Deaktiver ST-backup for å teste uassisterte innsatser
     sim.reset();
 
     simSec(sim, 30);

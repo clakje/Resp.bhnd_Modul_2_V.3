@@ -104,11 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Avkrysningsboks for pedagogisk lungekurvevisning (A7)
     const checkShowTrueCurves = document.getElementById('checkShowTrueCurves');
 
-    // Monitor verktøylinje (C8, D3, C9)
-    const btnSweep6 = document.getElementById('btnSweep6');
-    const btnSweep10 = document.getElementById('btnSweep10');
+    // Monitor verktøylinje (C8, C9)
     const btnSweep15 = document.getElementById('btnSweep15');
-    const btnTogglePes = document.getElementById('btnTogglePes');
     const btnScaleLocked = document.getElementById('btnScaleLocked');
     const btnScaleAuto = document.getElementById('btnScaleAuto');
 
@@ -203,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Scenarioknapper (D4: Asynkroni- & Læringsscenarioer)
     const scenarioBtns = {
         wellAdjusted: document.getElementById('scenWellAdjusted'),
+        mildlySedated: document.getElementById('scenMildlySedated'),
         slowTrigger: document.getElementById('scenSlowTrigger'),
         autotrigger: document.getElementById('scenAutotrigger'),
         slowRise: document.getElementById('scenSlowRise'),
@@ -229,72 +227,110 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'Godt tilpasset NIV',
             badge: '✅ Referanse',
             mode: 'PS',
-            ipap: 14,
+            ipap: 8,
             epap: 5,
-            rr: 14,
+            rr: 12,
             fio2: 30,
             riseTime: 150,
             cycling: 25,
             tiSet: 1.0,
             tiMax: 2.0,
-            leak: 5,
+            leak: 0,
             triggerMode: 'flow',
             triggerVal: 1.5,
             stActive: true,
             backupRate: 12,
-            compliance: 50,
+            compliance: 90,
             resistance: 5,
             flowLimitation: 0.0,
-            expRatio: 1.5,
-            rrSpont: 14,
-            pmus: 3.0,
-            tiNeural: 0.9,
+            expRatio: 1.0,
+            rrSpont: 12,
+            pmus: 5.0,
+            tiNeural: 1.0,
             pmusExp: 0.0,
-            variability: 8,
+            variability: 15,
             cardiac: 0.0,
             height: 175,
-            whatYouSee: 'Alle pasientinnsatser utløser assisterte pust (▲) med stabilt tidalvolum (450–550 ml). Ekspirasjonsflow returnerer uanstrengt til null før neste innpust.',
-            whyItHappens: 'Respiratorens trykkstøtte, stigetid, trigger og cycling er optimalt synkronisert med pasientens egen pusterytme og lungefysiologi.',
+            whatYouSee: 'Alle pasientinnsatser utløser assisterte pust (▲) med stabilt tidalvolum (~500 ml). Ekspirasjonsflow returnerer uanstrengt til null før neste innpust (Auto-PEEP 0 cmH₂O).',
+            whyItHappens: 'Respiratorens trykkstøtte (IPAP 8 / EPAP 5), stigetid, trigger og cycling er optimalt synkronisert med pasientens egen pusterytme (12/min, Ti 1,0 s, Pmus 5 cmH₂O) og lungefysiologi (C 90, R 5).',
             whatToDo: 'Referansebildet for vellykket NIV-behandling. Pasienten er godt ventilert og synkron — fortsett klinisk overvåking.',
             annotations: [
                 { track: 'paw', relX: 0.45, relY: 0.35, title: 'Stabil Paw', desc: 'Jevnt trykkplatå' },
-                { track: 'flow', relX: 0.50, relY: 0.50, title: 'God tømming', desc: 'Flow når 0 før neste pust' }
+                { track: 'flow', relX: 0.50, relY: 0.50, title: 'God tømming', desc: 'Flow når 0 før neste pust (Auto-PEEP 0)' }
             ]
         },
-        slowTrigger: {
-            name: 'Trigger for treg',
-            badge: '🐢 Mislykket trigger',
+        mildlySedated: {
+            name: 'Lungefrisk, lett sedert',
+            badge: '😴 Lett sedert',
             mode: 'PS',
-            ipap: 14,
+            ipap: 9,
             epap: 5,
-            rr: 14,
+            rr: 11,
             fio2: 30,
             riseTime: 150,
             cycling: 25,
             tiSet: 1.0,
             tiMax: 2.0,
-            leak: 5,
+            leak: 0,
+            triggerMode: 'flow',
+            triggerVal: 1.5,
+            stActive: true,
+            backupRate: 10,
+            compliance: 90,
+            resistance: 5,
+            flowLimitation: 0.0,
+            expRatio: 1.0,
+            rrSpont: 11,
+            pmus: 3.0,
+            tiNeural: 1.0,
+            pmusExp: 0.0,
+            variability: 5,
+            cardiac: 0.0,
+            height: 175,
+            tolkning: 'Pasienten har normale lunger og normal respiratorisk muskelstyrke. Den lette sedasjonen reduserer respiratorisk drive noe, som gir litt lavere respirasjonsfrekvens og lavere Pmus,insp enn hos en våken person. Ekspirasjonen er passiv uten bukmuskelaktivitet. Pustemønsteret er regelmessig og stabilt.',
+            whatYouSee: 'Regelmessig og rolig pustemønster (11/min) med stabilt tidalvolum (~500 ml). Ekspirasjonsflow returnerer fullstendig til null før neste innpust (Auto-PEEP 0 cmH₂O).',
+            whyItHappens: 'Den lette sedasjonen reduserer pasientens eget respiratoriske drive (Pmus,insp 3 cmH₂O, 11/min), men trykkstøtten (IPAP 9 / EPAP 5, ΔP 4 cmH₂O) og normal lungefysiologi (C 90, R 5) sikrer harmonisk og fullgod ventilasjon.',
+            whatToDo: 'Optimal klinisk situasjon. Ekspirasjonen er passiv uten bukmuskelaktivitet. Fortsett overvåking av sedasjonsdybde og respirasjonsdrive.',
+            annotations: [
+                { track: 'paw', relX: 0.45, relY: 0.35, title: 'Stabil trykkstøtte', desc: 'Jevnt og synkront platå' },
+                { track: 'flow', relX: 0.50, relY: 0.50, title: 'Rolig tømming', desc: 'Flow når 0 før neste pust (Auto-PEEP 0)' }
+            ]
+        },
+        slowTrigger: {
+            name: 'For høy triggersensitivitet',
+            badge: '🐢 Ufølsom trigger',
+            mode: 'PS',
+            ipap: 10,
+            epap: 5,
+            rr: 12,
+            fio2: 30,
+            riseTime: 150,
+            cycling: 25,
+            tiSet: 1.0,
+            tiMax: 2.0,
+            leak: 0,
             triggerMode: 'flow',
             triggerVal: 5.0,
             stActive: true,
-            backupRate: 12,
-            compliance: 50,
+            backupRate: 10,
+            compliance: 90,
             resistance: 5,
             flowLimitation: 0.0,
-            expRatio: 1.5,
-            rrSpont: 14,
-            pmus: 0.35,
-            tiNeural: 0.9,
+            expRatio: 1.0,
+            rrSpont: 12,
+            pmus: 0.75,
+            tiNeural: 1.0,
             pmusExp: 0.0,
-            variability: 8,
+            variability: 10,
             cardiac: 0.0,
             height: 175,
-            whatYouSee: 'Åpne trekanter (△) og tydelige «buler» i ekspirasjonsflowen uten at maskinen leverer trykkstøtte. Andel spontane pust (% Spont) faller dramatisk.',
-            whyItHappens: 'Inspirasjonstriggeren er satt for tungt (5.0 L/min) i forhold til pasientens svake innsats (0.35 cmH₂O / ~4 L/min). Innsatsen når ikke over terskelen, og innpustet blir uassistert.',
-            whatToDo: 'Gjør triggeren mer følsom ved å redusere flow-triggeren (f.eks. til 1.5–2.0 L/min).',
+            tolkning: 'Pasienten har normal lungefysiologi (C 90 mL/cmH₂O, Rinsp 5 cmH₂O/L/s, Rexp 5 cmH₂O/L/s, Auto-PEEP 0 cmH₂O), men lav inspiratorisk muskelinnsats (Pmus,insp 2–3 cmH₂O, Pmus,max kap. 100 cmH₂O) som bare klarer å generere omtrent 3–4 L/min triggerflow. Dette demonstrerer effekten av triggerfølsomhet alene, uten forstyrrende variabler som auto-PEEP eller obstruksjon.',
+            whatYouSee: 'Ved Trigger 5,0 L/min: Ingen trigging (0 %) — alle pasientinnsatser blir uassisterte med åpne trekanter (△) og «buler» i ekspirasjonsflowen. Ved Trigger 4,0 L/min: Sporadisk trigging. Ved Trigger 3,0 L/min: 100 % stabil og synkron trigging (▲) med tidalvolum ~450 ml.',
+            whyItHappens: 'Respiratorens flow-triggerterskel er innstilt for ufølsomt (5,0 L/min) i forhold til pasientens svake inspiratoriske innsats (~3–4 L/min triggerflow). Pasienten når ikke over terskelen, og innpustene forblir uassisterte inntil triggeren justeres ned.',
+            whatToDo: 'Gjør triggeren mer følsom ved å redusere flow-triggeren til 3,0 L/min eller lavere (f.eks. 1,5–2,0 L/min). Da trigges alle pust stabilt og maskinen leverer optimal trykkstøtte (IPAP 10 / EPAP 5, ΔP 5 cmH₂O, Vt 450 ml).',
             annotations: [
                 { track: 'flow', relX: 0.45, relY: 0.65, title: 'Mislykket innsats', desc: 'Bule i ekspirasjonsflow (△)' },
-                { track: 'pes', relX: 0.45, relY: 0.45, title: 'Pasientinnsats', desc: 'Pasienten prøver, men maskinen ser det ikke' }
+                { track: 'paw', relX: 0.45, relY: 0.85, title: 'Uassistert innsats', desc: 'Maskinen reagerer ikke med trykkstøtte (△)' }
             ]
         },
         autotrigger: {
@@ -1120,9 +1156,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sliders.cycling) sliders.cycling.value = 25;
             if (sliders.tiMax) sliders.tiMax.value = 2.0;
         } else if (presetKey === 'normal') {
-            if (sliders.ipap) sliders.ipap.value = 14;
+            if (sliders.ipap) sliders.ipap.value = 8;
             if (sliders.epap) sliders.epap.value = 5;
-            if (sliders.rr) sliders.rr.value = 15;
+            if (sliders.rr) sliders.rr.value = 12;
             if (sliders.cycling) sliders.cycling.value = 25;
             if (sliders.tiMax) sliders.tiMax.value = 2.0;
         }
@@ -1186,12 +1222,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // D6: Klargjør fasit-annotasjoner for dette scenarioet
         renderer.setAnnotations(scen.annotations || []);
 
-        // Oppdater innsiktsboksen med tre punkter (D4 krav)
+        // Oppdater innsiktsboksen med tre punkter (D4 krav) + eventuell Tolkning
         if (insightText) {
             insightText.innerHTML = `
                 <div style="margin-bottom: 8px; font-size: 14px; font-weight: 700; color: #f0abfc;">
                     🎯 Scenario: ${scen.name} (${scen.badge})
                 </div>
+                ${scen.tolkning ? `
+                <div style="margin-bottom: 8px; padding: 7px 10px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid #38bdf8; border-radius: 4px; font-size: 12.5px; line-height: 1.45; color: #e0f2fe;">
+                    📋 <strong>Tolkning:</strong> ${scen.tolkning}
+                </div>` : ''}
                 <div style="margin-bottom: 6px;">
                     👁️ <strong>Hva du ser:</strong> ${scen.whatYouSee}
                 </div>
@@ -1235,31 +1275,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Monitor verktøylinje event listeners (C8, D3, C9)
-    function setSweepDurationUI(duration) {
-        [btnSweep6, btnSweep10, btnSweep15].forEach(btn => {
-            if (btn) {
-                const bSweep = parseFloat(btn.getAttribute('data-sweep'));
-                btn.classList.toggle('active', bSweep === duration);
-            }
-        });
-        renderer.setSweepDuration(duration);
+    function setSweepDurationUI(duration = 15) {
+        if (btnSweep15) {
+            btnSweep15.classList.add('active');
+        }
+        renderer.setSweepDuration(15);
     }
 
-    if (btnSweep6) btnSweep6.addEventListener('click', () => setSweepDurationUI(6));
-    if (btnSweep10) btnSweep10.addEventListener('click', () => setSweepDurationUI(10));
     if (btnSweep15) btnSweep15.addEventListener('click', () => setSweepDurationUI(15));
 
-    if (btnTogglePes) {
-        btnTogglePes.addEventListener('click', () => {
-            renderer.togglePesTrack();
-            btnTogglePes.classList.toggle('active', renderer.showPesTrack);
-        });
-    }
-
-    function setScaleModeUI(isAuto) {
+    function setScaleModeUI(isAuto = true) {
         if (btnScaleLocked) btnScaleLocked.classList.toggle('active', !isAuto);
-        if (btnScaleAuto) btnScaleAuto.classList.toggle('active', isAuto);
-        renderer.setAutoScale('all', isAuto);
+        if (btnScaleAuto) btnScaleAuto.classList.add('active');
+        renderer.setAutoScale('all', true);
     }
 
     if (btnScaleLocked) btnScaleLocked.addEventListener('click', () => setScaleModeUI(false));
@@ -1352,10 +1380,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderer.showTrueCurves = false;
         }
 
-        // Tilbakestill monitorinnstillinger til klinisk standard (C8, D3, C9)
-        setSweepDurationUI(10);
-        renderer.showPesTrack = true;
-        if (btnTogglePes) btnTogglePes.classList.add('active');
+        // Tilbakestill monitorinnstillinger til klinisk standard (C8, C9)
+        setSweepDurationUI(15);
         setScaleModeUI(false);
 
         if (isPaused) {

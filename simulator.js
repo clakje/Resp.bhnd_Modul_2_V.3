@@ -43,17 +43,17 @@ const GRENSER = {
  */
 class PatientDrive {
     constructor() {
-        this.rrSpont = 14;         // /min - Pasientens spontane frekvens (0 = passiv)
-        this.pmusMax = 3.0;        // cmH2O - Inspiratorisk muskelkraft (0–20)
-        this.tiNeural = 0.9;       // sekunder - Nevral inspirasjonstid (0.4–1.6)
+        this.rrSpont = 12;         // /min - Pasientens spontane frekvens (0 = passiv)
+        this.pmusMax = 5.0;        // cmH2O - Inspiratorisk muskelkraft (0–20)
+        this.tiNeural = 1.0;       // sekunder - Nevral inspirasjonstid (0.4–1.6)
         this.pmusExp = 0.0;        // cmH2O - Ekspiratorisk muskelkraft / aktiv utpust (0–10)
-        this.variability = 10;     // % - Tilfeldig variasjon i frekvens og kraft (0–30)
+        this.variability = 15;     // % - Tilfeldig variasjon i frekvens og kraft (0–30)
         this.cardiacArtifact = 0.0;// L/min - Svak flowoscillasjon fra hjerteslag (0–3)
 
         this.timeInCycle = 0;      // sekunder i gjeldende nevrale syklus
-        this.currentCycleDuration = 60 / 14;
-        this.currentPmusMax = 3.0;
-        this.currentTiNeural = 0.9;
+        this.currentCycleDuration = 60 / 12;
+        this.currentPmusMax = 5.0;
+        this.currentTiNeural = 1.0;
         this.currentPmusExp = 0.0;
         this.currentEffort = null; // Peker til aktivt objekt i state.efforts
         this.P_mus = 0.0;          // cmH2O - Gjeldende muskelkraft
@@ -155,9 +155,9 @@ class VentilatorSimulator {
         // Respiratorinnstillinger (Klinisk NIV / Hamilton standard)
         this.settings = {
             mode: 'PS',             // 'PS' (trykkstøtte, standard) eller 'PC' (trykkontroll)
-            ipap: 14,               // cmH2O (Inspiratory Positive Airway Pressure / PC over PEEP)
+            ipap: 8,                // cmH2O (Inspiratory Positive Airway Pressure / PC over PEEP)
             epap: 5,                // cmH2O (Expiratory Positive Airway Pressure / PEEP)
-            rr: 15,                 // /min (Innstilt frekvens / A/C)
+            rr: 12,                 // /min (Innstilt frekvens / A/C)
             fio2: 30,               // % Oksygenfraksjon
             riseTime: 0.15,         // sekunder (Tid for å nå IPAP, 0.05 - 0.90 s)
             cyclingPercent: 0.25,   // 25% av toppflow avslutter innpust (E-Sense, 5–90%)
@@ -166,7 +166,7 @@ class VentilatorSimulator {
             tiMin: 0.25,            // sekunder - Minimal inspirasjonstid
             leak: 0,                // L/min @ 10 cmH2O (Maskelekkasje, A7)
             triggerMode: 'flow',    // 'flow' eller 'pressure'
-            triggerFlow: 3.0,       // L/min (Flow-trigger terskel: 1.0 - 5.0 L/min)
+            triggerFlow: 1.5,       // L/min (Flow-trigger terskel: 1.0 - 5.0 L/min)
             triggerPressure: 1.0,   // cmH2O (Trykk-trigger terskel: 0.2 - 5.0 cmH2O)
             
             // FASE 6 (D2): ST-backup innstillinger
@@ -183,9 +183,9 @@ class VentilatorSimulator {
 
         // Pasientfysiologi (A6 & D5)
         this.patient = {
-            compliance: 50,         // ml / cmH2O (Lungenettverkets ettergivelighet)
+            compliance: 90,         // ml / cmH2O (Lungenettverkets ettergivelighet)
             resistance: 5,          // cmH2O / (L/s) (Inspiratorisk luftveismotstand, R_insp)
-            expRatio: 1.5,          // Forhold ekspiratorisk / inspiratorisk motstand (1.0–3.0, standard 1.5)
+            expRatio: 1.0,          // Forhold ekspiratorisk / inspiratorisk motstand (1.0–3.0, standard 1.0: R_exp = 5)
             flowLimitation: 0.0,    // Ekspiratorisk flowbegrensning (0–1, standard 0, KOLS = 0.70)
             preset: 'normal',       // 'normal', 'copd', 'restrictive', 'custom'
             height: 175,            // cm - Pasienthøyde for beregning av idealvekt (IBW)
@@ -367,17 +367,17 @@ class VentilatorSimulator {
             this.patientDrive.variability = 10;
             this.patientDrive.cardiacArtifact = 0.0;
         } else {
-            // Normal
-            this.patient.compliance = 50;
+            // Normal (Frisk pasient)
+            this.patient.compliance = 90;
             this.patient.resistance = 5;
-            this.patient.expRatio = 1.5;
+            this.patient.expRatio = 1.0;
             this.patient.flowLimitation = 0.0;
             this.patient.preset = 'normal';
-            this.patientDrive.rrSpont = 14;
-            this.patientDrive.pmusMax = 3.0;
-            this.patientDrive.tiNeural = 0.9;
+            this.patientDrive.rrSpont = 12;
+            this.patientDrive.pmusMax = 5.0;
+            this.patientDrive.tiNeural = 1.0;
             this.patientDrive.pmusExp = 0.0;
-            this.patientDrive.variability = 10;
+            this.patientDrive.variability = 15;
             this.patientDrive.cardiacArtifact = 0.0;
         }
     }

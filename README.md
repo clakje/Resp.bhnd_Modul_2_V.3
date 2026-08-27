@@ -49,7 +49,7 @@ $$P_{aw}(t) + P_{mus}(t) = \frac{V(t)}{C} + \dot{V}(t) \cdot R$$
 Alle scenarioer i simulatoren er **ekte parametersett** — ingen skriptede kurver. Fysikkmotoren genererer dynamikken:
 
 1. **Godt tilpasset NIV:** Referansebilde for harmonisk ventilasjon (100 % ▲ assisterte pust).
-2. **Trigger for treg:** Høy triggerterskel gir mislykkede innsatser (△) og fall i % Spont.
+2. **For høy triggersensitivitet:** Høy triggerterskel (5 L/min) vs svak innsats (3 L/min triggerflow) gir mislykkede innsatser (△) og fall i % Spont.
 3. **Autotrigging:** Lekkasje og følsom trigger trigger maskinen uten pasientinnsats (⨂).
 4. **Stigetid for treg:** Langsom trykkstigning (800 ms) gir markant trykkdipp ved kraftig pasientdrive.
 5. **Stigetid for rask:** Aggressiv trykkstigning (50 ms) skaper trykkoversving (spike) og for tidlig avslutning.
@@ -76,7 +76,7 @@ Simulatoren er bygget i ren Vanilla HTML5, CSS3 og JavaScript uten eksterne avhe
 
 1. Klon repoet:
    ```bash
-   git clone https://github.com/kokkos88/Resp.bhnd_Modul_2_V.1.git
+   git clone https://github.com/clakje/Resp.bhnd_Modul_2_V.3.git
    ```
 2. Åpne `index.html` direkte i nettleseren, eller kjør en lokal webserver:
    ```bash
