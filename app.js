@@ -138,6 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
         apneaDelay: document.getElementById('sliderApneaDelay'),
         alarmLeak: document.getElementById('sliderAlarmLeak'),
         alarmLowVt: document.getElementById('sliderAlarmLowVt'),
+        alarmHighVt: document.getElementById('sliderAlarmHighVt'),
+        alarmLowRr: document.getElementById('sliderAlarmLowRr'),
         alarmHighRr: document.getElementById('sliderAlarmHighRr'),
         alarmHighPpeak: document.getElementById('sliderAlarmHighPpeak')
     };
@@ -166,14 +168,31 @@ document.addEventListener('DOMContentLoaded', () => {
         riseTime: document.getElementById('badgeRiseTime'),
         leak: document.getElementById('badgeLeak'),
 
-        // Fase 4 Badges
+        // Fase 4 Badges & Labels
         height: document.getElementById('badgeHeight'),
         apneaDelay: document.getElementById('badgeApneaDelay'),
         alarmLeak: document.getElementById('badgeAlarmLeak'),
         alarmLowVt: document.getElementById('badgeAlarmLowVt'),
+        alarmHighVt: document.getElementById('badgeAlarmHighVt'),
+        alarmLowRr: document.getElementById('badgeAlarmLowRr'),
         alarmHighRr: document.getElementById('badgeAlarmHighRr'),
         alarmHighPpeak: document.getElementById('badgeAlarmHighPpeak')
     };
+
+    // Alarmgrenser etiketter og enhetsvelger
+    const labelAlarmLowVtVal = document.getElementById('labelAlarmLowVtVal');
+    const labelAlarmHighVtVal = document.getElementById('labelAlarmHighVtVal');
+    const labelAlarmLowRrVal = document.getElementById('labelAlarmLowRrVal');
+    const labelAlarmHighRrVal = document.getElementById('labelAlarmHighRrVal');
+
+    const btnLeakUnitLmin = document.getElementById('btnLeakUnitLmin');
+    const btnLeakUnitPercent = document.getElementById('btnLeakUnitPercent');
+    const leakLimitMin = document.getElementById('leakLimitMin');
+    const leakLimitMid = document.getElementById('leakLimitMid');
+    const leakLimitMax = document.getElementById('leakLimitMax');
+    const leakSublabel = document.getElementById('leakSublabel');
+    const btnAlarmLeakStepDown = document.getElementById('btnAlarmLeakStepDown');
+    const btnAlarmLeakStepUp = document.getElementById('btnAlarmLeakStepUp');
 
     // Trigger-samkjøringsfelter (UI/UX)
     const triggerSyncBox = document.getElementById('triggerSyncBox');
@@ -749,7 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (triggerTitle) triggerTitle.textContent = 'Trykk-trigger (Inspirasjonstrigger)';
             if (triggerSublabel) triggerSublabel.textContent = 'Trykkfall under EPAP for å utløse støtte (0.2–5.0 cmH₂O)';
             if (triggerLimitMin) triggerLimitMin.textContent = '0.2 cmH₂O (Svært lett)';
-            if (triggerLimitMid) triggerLimitMid.textContent = '1.0 cmH₂O (Standard)';
+            if (triggerLimitMid) triggerLimitMid.textContent = '1.0 cmH₂O';
             if (triggerLimitMax) triggerLimitMax.textContent = '5.0 cmH₂O (Tung)';
 
             if (sliders.trigger) {
@@ -768,6 +787,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (btnTrigModePressure) {
         btnTrigModePressure.addEventListener('click', () => setTriggerMode('pressure'));
+    }
+
+    // =========================================================================
+    // LEKKASJE ALARM ENHET (L/min vs %)
+    // =========================================================================
+    function setLeakAlarmUnit(unit) {
+        simulator.settings.alarmLeakUnit = unit;
+        if (unit === 'lmin') {
+            if (btnLeakUnitLmin) btnLeakUnitLmin.classList.add('active');
+            if (btnLeakUnitPercent) btnLeakUnitPercent.classList.remove('active');
+            if (leakSublabel) leakSublabel.textContent = 'Utløses ved lekkasje over grensen i > 10 sekunder';
+            if (leakLimitMin) leakLimitMin.textContent = '10 L/min';
+            if (leakLimitMid) leakLimitMid.textContent = '40 L/min';
+            if (leakLimitMax) leakLimitMax.textContent = '60 L/min';
+            if (btnAlarmLeakStepDown) btnAlarmLeakStepDown.dataset.step = '-5';
+            if (btnAlarmLeakStepUp) btnAlarmLeakStepUp.dataset.step = '5';
+            if (sliders.alarmLeak) {
+                sliders.alarmLeak.min = '10';
+                sliders.alarmLeak.max = '60';
+                sliders.alarmLeak.step = '5';
+                sliders.alarmLeak.value = simulator.settings.alarmLeakLimit || 40;
+            }
+        } else {
+            if (btnLeakUnitPercent) btnLeakUnitPercent.classList.add('active');
+            if (btnLeakUnitLmin) btnLeakUnitLmin.classList.remove('active');
+            if (leakSublabel) leakSublabel.textContent = 'Utløses ved lekkasjeprosent over grensen i > 10 sekunder';
+            if (leakLimitMin) leakLimitMin.textContent = '10 %';
+            if (leakLimitMid) leakLimitMid.textContent = '50 %';
+            if (leakLimitMax) leakLimitMax.textContent = '80 %';
+            if (btnAlarmLeakStepDown) btnAlarmLeakStepDown.dataset.step = '-5';
+            if (btnAlarmLeakStepUp) btnAlarmLeakStepUp.dataset.step = '5';
+            if (sliders.alarmLeak) {
+                sliders.alarmLeak.min = '10';
+                sliders.alarmLeak.max = '80';
+                sliders.alarmLeak.step = '5';
+                sliders.alarmLeak.value = simulator.settings.alarmLeakPercentLimit || 50;
+            }
+        }
+        updateSimulatorFromUI();
+    }
+
+    if (btnLeakUnitLmin) {
+        btnLeakUnitLmin.addEventListener('click', () => setLeakAlarmUnit('lmin'));
+    }
+    if (btnLeakUnitPercent) {
+        btnLeakUnitPercent.addEventListener('click', () => setLeakAlarmUnit('percent'));
     }
 
     // Funksjon for sanntids samkjøring av pasientflow og trigger (A4 & A6)
@@ -939,16 +1004,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const variability = parseInt(sliders.variability.value, 10);
         const cardiac = parseFloat(sliders.cardiacArtifact.value);
         const cycling = parseFloat(sliders.cycling.value) / 100;
-        const tiMax = parseFloat(sliders.tiMax.value);
+        const tiMax = sliders.tiMax ? parseFloat(sliders.tiMax.value) : (simulator.settings.tiMax || 2.0);
         const riseTime = parseFloat(sliders.riseTime.value) / 1000;
-        const leak = parseFloat(sliders.leak.value);
+        const leak = sliders.leak ? parseFloat(sliders.leak.value) : 0;
         const triggerVal = parseFloat(sliders.trigger.value);
 
         // Fase 4: Pasientantropometri og Alarmgrenser
         const height = sliders.height ? parseInt(sliders.height.value, 10) : 175;
-        const apneaDelay = sliders.apneaDelay ? parseInt(sliders.apneaDelay.value, 10) : 15;
-        const alarmLeak = sliders.alarmLeak ? parseFloat(sliders.alarmLeak.value) : 40;
+        const apneaDelay = sliders.apneaDelay ? parseInt(sliders.apneaDelay.value, 10) : 20;
+        const alarmLeakVal = sliders.alarmLeak ? parseFloat(sliders.alarmLeak.value) : 40;
         const alarmLowVt = sliders.alarmLowVt ? parseInt(sliders.alarmLowVt.value, 10) : 300;
+        const alarmHighVt = sliders.alarmHighVt ? parseInt(sliders.alarmHighVt.value, 10) : 800;
+        const alarmLowRr = sliders.alarmLowRr ? parseInt(sliders.alarmLowRr.value, 10) : 0;
         const alarmHighRr = sliders.alarmHighRr ? parseInt(sliders.alarmHighRr.value, 10) : 30;
         const alarmHighPpeak = sliders.alarmHighPpeak ? parseFloat(sliders.alarmHighPpeak.value) : 5;
 
@@ -966,8 +1033,14 @@ document.addEventListener('DOMContentLoaded', () => {
         simulator.settings.tiMax = tiMax;
         simulator.settings.leak = leak;
         simulator.settings.apneaDelay = apneaDelay;
-        simulator.settings.alarmLeakLimit = alarmLeak;
+        if (simulator.settings.alarmLeakUnit === 'percent') {
+            simulator.settings.alarmLeakPercentLimit = alarmLeakVal;
+        } else {
+            simulator.settings.alarmLeakLimit = alarmLeakVal;
+        }
         simulator.settings.alarmLowVtLimit = alarmLowVt;
+        simulator.settings.alarmHighVtLimit = alarmHighVt;
+        simulator.settings.alarmLowRrLimit = alarmLowRr;
         simulator.settings.alarmHighRrLimit = alarmHighRr;
         simulator.settings.alarmHighPpeakDelta = alarmHighPpeak;
 
@@ -1014,14 +1087,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (badges.riseTime) badges.riseTime.textContent = `${Math.round(riseTime * 1000)} ms`;
         if (badges.leak) badges.leak.textContent = `${leak} L/min`;
 
-        // Fase 4 Badges
+        // Fase 4 Badges & Labels
         if (badges.height) badges.height.textContent = `${height} cm`;
         const currentIbw = simulator.getPatientIBW();
         if (badgeIbwCalc) badgeIbwCalc.textContent = `IBW: ${currentIbw} kg`;
         if (badges.apneaDelay) badges.apneaDelay.textContent = `${apneaDelay} s`;
-        if (badges.alarmLeak) badges.alarmLeak.textContent = `${alarmLeak} L/min`;
-        if (badges.alarmLowVt) badges.alarmLowVt.textContent = `${alarmLowVt} ml`;
-        if (badges.alarmHighRr) badges.alarmHighRr.textContent = `${alarmHighRr} /min`;
+        if (badges.alarmLeak) {
+            if (simulator.settings.alarmLeakUnit === 'percent') {
+                badges.alarmLeak.textContent = `${Math.round(alarmLeakVal)} %`;
+            } else {
+                badges.alarmLeak.textContent = `${Math.round(alarmLeakVal)} L/min`;
+            }
+        }
+        if (badges.alarmLowVt) badges.alarmLowVt.textContent = `Lav: ${alarmLowVt} ml`;
+        if (badges.alarmHighVt) badges.alarmHighVt.textContent = `Høy: ${alarmHighVt} ml`;
+        if (labelAlarmLowVtVal) labelAlarmLowVtVal.textContent = `${alarmLowVt} ml`;
+        if (labelAlarmHighVtVal) labelAlarmHighVtVal.textContent = `${alarmHighVt} ml`;
+
+        if (badges.alarmLowRr) badges.alarmLowRr.textContent = `Lav: ${alarmLowRr} /min`;
+        if (badges.alarmHighRr) badges.alarmHighRr.textContent = `Høy: ${alarmHighRr} /min`;
+        if (labelAlarmLowRrVal) labelAlarmLowRrVal.textContent = alarmLowRr === 0 ? `0 /min (Av)` : `${alarmLowRr} /min`;
+        if (labelAlarmHighRrVal) labelAlarmHighRrVal.textContent = `${alarmHighRr} /min`;
+
         if (badges.alarmHighPpeak) badges.alarmHighPpeak.textContent = `+${alarmHighPpeak} cmH₂O`;
 
         if (badges.trigger) {
@@ -1373,6 +1460,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Tilbakestill monitorinnstillinger til klinisk standard (C8, C9)
         setSweepDurationUI(15);
         setScaleModeUI(false);
+        setLeakAlarmUnit('lmin');
+        if (sliders.apneaDelay) sliders.apneaDelay.value = 20;
+        if (sliders.alarmLeak) sliders.alarmLeak.value = 40;
+        if (sliders.alarmLowVt) sliders.alarmLowVt.value = 300;
+        if (sliders.alarmHighVt) sliders.alarmHighVt.value = 800;
+        if (sliders.alarmLowRr) sliders.alarmLowRr.value = 0;
+        if (sliders.alarmHighRr) sliders.alarmHighRr.value = 30;
+        if (sliders.alarmHighPpeak) sliders.alarmHighPpeak.value = 5;
 
         if (isPaused) {
             isPaused = false;
@@ -1452,12 +1547,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasApnea = activeAlarms.some(a => a.id === 'apnea');
             const hasHighPressure = activeAlarms.some(a => a.id === 'high_pressure');
             const hasLowVt = activeAlarms.some(a => a.id === 'low_vt');
+            const hasHighVt = activeAlarms.some(a => a.id === 'high_vt');
+            const hasLowRr = activeAlarms.some(a => a.id === 'low_rr');
             const hasHighRr = activeAlarms.some(a => a.id === 'high_rr');
 
             if (cardMetricPpeak) cardMetricPpeak.classList.toggle('metric-alarm-active', hasHighPressure);
-            if (cardMetricVt) cardMetricVt.classList.toggle('metric-alarm-active', hasLowVt);
+            if (cardMetricVt) cardMetricVt.classList.toggle('metric-alarm-active', hasLowVt || hasHighVt);
             if (cardMetricMv) cardMetricMv.classList.toggle('metric-alarm-active', hasApnea);
-            if (cardMetricRR) cardMetricRR.classList.toggle('metric-alarm-active', hasApnea || hasHighRr);
+            if (cardMetricRR) cardMetricRR.classList.toggle('metric-alarm-active', hasApnea || hasHighRr || hasLowRr);
 
             // Sekundære måleverdier (D5)
             if (dispPipPplat) dispPipPplat.textContent = `${m.ppeak.toFixed(1)} / ${m.pplat.toFixed(1)}`;

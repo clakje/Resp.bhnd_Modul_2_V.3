@@ -174,9 +174,13 @@ class VentilatorSimulator {
             stActive: false,        // boolean - ST-modus inaktiv (standard av)
             
             // FASE 4 (C3): Alarmgrenser med kliniske standardverdier
-            apneaDelay: 15,         // sekunder - forsinkelse før apné-alarm utløses (5–30 s)
+            apneaDelay: 20,         // sekunder - forsinkelse før apné-alarm utløses (5–30 s)
+            alarmLeakUnit: 'lmin',  // 'lmin' | 'percent'
             alarmLeakLimit: 40,     // L/min - grense for høy maskelekkasje (10–60 L/min)
+            alarmLeakPercentLimit: 50, // % - grense for høy maskelekkasje i prosent (10–80 %)
             alarmLowVtLimit: 300,   // ml - grense for lavt tidalvolum (100–600 ml)
+            alarmHighVtLimit: 800,  // ml - grense for høyt tidalvolum (300–1000 ml)
+            alarmLowRrLimit: 0,     // /min - grense for lav respirasjonsfrekvens (0–25 /min, 0 = av)
             alarmHighRrLimit: 30,   // /min - grense for høy respirasjonsfrekvens (20–50 /min)
             alarmHighPpeakDelta: 5  // cmH2O - trykktillegg over IPAP for høyt-trykk-alarm (2–10 cmH2O)
         };
@@ -273,7 +277,8 @@ class VentilatorSimulator {
             activeAlarms: [],
             alarmState: {
                 leakTimeAbove: 0,         // sekunder kontinuerlig over lekkasjegrense
-                lowVtStreak: 0            // antall påfølgende pust under Vt-grense
+                lowVtStreak: 0,           // antall påfølgende pust under lav Vt-grense
+                highVtStreak: 0           // antall påfølgende pust over høy Vt-grense
             },
 
             // Kontinuerlige monitor-målinger (Fase 4 - fullt ut målte verdier)
@@ -448,7 +453,8 @@ class VentilatorSimulator {
         this.state.activeAlarms = [];
         this.state.alarmState = {
             leakTimeAbove: 0,
-            lowVtStreak: 0
+            lowVtStreak: 0,
+            highVtStreak: 0
         };
 
         this.state.measured.vt = initTheoVt;
@@ -873,8 +879,12 @@ class VentilatorSimulator {
         // Oppdater kontinuerlige lekkasjemålinger (A7)
         this.state.measured.leak = parseFloat((Q_leak * 60).toFixed(1));
 
-        // C3: Spor varighet over lekkasjegrense
-        if (this.state.measured.leak > this.settings.alarmLeakLimit) {
+        // C3: Spor varighet over lekkasjegrense (% eller L/min)
+        const isLeakOver = (this.settings.alarmLeakUnit === 'percent')
+            ? ((this.state.measured.leakPercent || 0) > this.settings.alarmLeakPercentLimit)
+            : (this.state.measured.leak > this.settings.alarmLeakLimit);
+
+        if (isLeakOver) {
             this.state.alarmState.leakTimeAbove += dt;
         } else {
             this.state.alarmState.leakTimeAbove = Math.max(0, this.state.alarmState.leakTimeAbove - dt * 2);
@@ -920,7 +930,7 @@ class VentilatorSimulator {
                 id: 'high_pressure',
                 priority: 2,
                 type: 'warning',
-                title: 'HØYT TRYKK',
+                title: 'HØYT TOPPTRYKK',
                 msg: `Topptrykk (${this.state.measured.ppeak.toFixed(1)} cmH₂O) overstiger alarmgrensen (${(this.settings.ipap + this.settings.alarmHighPpeakDelta).toFixed(1)} cmH₂O).`
             });
         }
@@ -933,6 +943,24 @@ class VentilatorSimulator {
                 msg: `VTE under ${this.settings.alarmLowVtLimit} ml i 3 påfølgende pust (siste: ${this.state.measured.vt} ml).`
             });
         }
+        if (this.state.alarmState.highVtStreak >= 3) {
+            alarms.push({
+                id: 'high_vt',
+                priority: 3,
+                type: 'warning',
+                title: 'HØYT TIDALVOLUM',
+                msg: `VTE over ${this.settings.alarmHighVtLimit} ml i 3 påfølgende pust (siste: ${this.state.measured.vt} ml).`
+            });
+        }
+        if (this.settings.alarmLowRrLimit > 0 && this.state.measured.rrTotal < this.settings.alarmLowRrLimit && !this.state.isApneaAlarm) {
+            alarms.push({
+                id: 'low_rr',
+                priority: 4,
+                type: 'warning',
+                title: 'LAV FREKVENS',
+                msg: `Målt RRtot (${this.state.measured.rrTotal} /min) er under lav grense (${this.settings.alarmLowRrLimit} /min).`
+            });
+        }
         if (this.state.measured.rrTotal > this.settings.alarmHighRrLimit) {
             alarms.push({
                 id: 'high_rr',
@@ -943,12 +971,15 @@ class VentilatorSimulator {
             });
         }
         if (this.state.alarmState.leakTimeAbove >= 10.0) {
+            const leakMsg = (this.settings.alarmLeakUnit === 'percent')
+                ? `Lekkasje (${this.state.measured.leakPercent || 0} %) har oversteget ${this.settings.alarmLeakPercentLimit} % i mer enn 10 sekunder.`
+                : `Lekkasje (${this.state.measured.leak.toFixed(1)} L/min) har oversteget ${this.settings.alarmLeakLimit} L/min i mer enn 10 sekunder.`;
             alarms.push({
                 id: 'high_leak',
                 priority: 5,
                 type: 'warning',
                 title: 'HØY LEKKASJE',
-                msg: `Lekkasje (${this.state.measured.leak.toFixed(1)} L/min) har oversteget ${this.settings.alarmLeakLimit} L/min i mer enn 10 sekunder.`
+                msg: leakMsg
             });
         }
         this.state.activeAlarms = alarms;
@@ -1028,12 +1059,17 @@ class VentilatorSimulator {
         // VTE fra det fullførte utpustet
         this.state.VTE = Math.round(this._vteAccum);
 
-        // C3: Spor påfølgende pust med lavt tidalvolum
+        // C3: Spor påfølgende pust med lavt eller høyt tidalvolum
         if (this.state.breathCount > 1) {
             if (this.state.VTE < this.settings.alarmLowVtLimit) {
                 this.state.alarmState.lowVtStreak++;
+                this.state.alarmState.highVtStreak = 0;
+            } else if (this.state.VTE > this.settings.alarmHighVtLimit) {
+                this.state.alarmState.highVtStreak++;
+                this.state.alarmState.lowVtStreak = 0;
             } else {
                 this.state.alarmState.lowVtStreak = 0;
+                this.state.alarmState.highVtStreak = 0;
             }
         }
 

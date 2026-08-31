@@ -22,9 +22,9 @@
     --color-volume-glow: rgba(6, 182, 212, 0.35);
 
     /* Tekstfarger */
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-dim: #64748b;
+    --text-main: #FFFFFF;
+    --text-muted: #FFFFFF;
+    --text-dim: #FFFFFF;
 
     /* Status og interaksjon */
     --color-accent: #38bdf8;
@@ -150,7 +150,7 @@ body {
 
 .btn-header:hover {
     background: var(--bg-subtle);
-    border-color: var(--text-dim);
+    border-color: var(--border-highlight);
 }
 
 .btn-header.active {
@@ -579,13 +579,13 @@ canvas#waveformCanvas {
     font-family: var(--font-mono);
     font-size: 13px;
     font-weight: 700;
-    color: #cbd5e1;
+    color: #FFFFFF;
     margin-top: 1px;
 }
 
 .set-param-item .param-unit {
     font-size: 8.5px;
-    color: #64748b;
+    color: #FFFFFF;
     font-family: var(--font-mono);
 }
 
@@ -1119,7 +1119,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .insight-text {
     font-size: 13px;
-    color: #cbd5e1;
+    color: #FFFFFF;
     line-height: 1.6;
 }
 

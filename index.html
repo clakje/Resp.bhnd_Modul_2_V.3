@@ -300,7 +300,7 @@
                 <button class="tab-btn active" data-tab="tab-machine">Respiratorinnstillinger</button>
                 <!-- Pasientfysiologi er midlertidig skjult fra UI, men bevares for senere aktivering -->
                 <button class="tab-btn" data-tab="tab-patient" style="display: none;">Pasientfysiologi</button>
-                <button class="tab-btn" data-tab="tab-advanced">Avansert & Lekkasje</button>
+                <button class="tab-btn" data-tab="tab-advanced">Alarmgrenser</button>
                 <button class="tab-btn" data-tab="tab-curves">Kurveforståelse</button>
             </div>
 
@@ -412,7 +412,7 @@
                             </div>
                             <div class="slider-limits">
                                 <span>0 /min (Av)</span>
-                                <span>12 /min (Standard)</span>
+                                <span>12 /min</span>
                                 <span>30 /min (Høy)</span>
                             </div>
                         </div>
@@ -509,6 +509,48 @@
                                         Pasienten utløser innpust pålitelig (1–3 L/min). Lilla trekant (▲) vises for hvert pust.
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Inspiratorisk avslutning (Cycling / E-Sense: 5–90%) -->
+                        <div class="control-card" id="cardCycling">
+                            <div class="control-header">
+                                <div>
+                                    <div class="control-label" id="labelCycling">Inspiratorisk avslutning (Cycling / E-Sense)</div>
+                                    <div class="control-sublabel" id="sublabelCycling">% av toppflow som avslutter innpustet</div>
+                                </div>
+                                <span class="control-value-pill" id="badgeCycling">25 %</span>
+                            </div>
+                            <div class="slider-wrapper">
+                                <button class="step-btn" data-target="sliderCycling" data-step="-5">-</button>
+                                <input type="range" id="sliderCycling" min="5" max="90" step="5" value="25">
+                                <button class="step-btn" data-target="sliderCycling" data-step="5">+</button>
+                            </div>
+                            <div class="slider-limits">
+                                <span>5 % (Sen avslutning / lang Ti)</span>
+                                <span id="labelCyclingStatus" style="color: var(--color-accent);">Gjelder i PS-modus</span>
+                                <span>90 % (Tidlig avslutning / kort Ti)</span>
+                            </div>
+                        </div>
+
+                        <!-- Stigetid / Rise Time -->
+                        <div class="control-card">
+                            <div class="control-header">
+                                <div>
+                                    <div class="control-label">Stigetid (Rise Time)</div>
+                                    <div class="control-sublabel">Tid maskinen bruker på å nå innstilt IPAP</div>
+                                </div>
+                                <span class="control-value-pill" id="badgeRiseTime">150 ms</span>
+                            </div>
+                            <div class="slider-wrapper">
+                                <button class="step-btn" data-target="sliderRiseTime" data-step="-25">-</button>
+                                <input type="range" id="sliderRiseTime" min="50" max="900" step="25" value="150">
+                                <button class="step-btn" data-target="sliderRiseTime" data-step="25">+</button>
+                            </div>
+                            <div class="slider-limits">
+                                <span>50 ms (Bratt/rask)</span>
+                                <span class="clinical-limit-marker" style="color: var(--color-warning); font-weight: 600;" title="Klinisk standard øvre grense (400 ms)">| 400 ms (Klinisk maks)</span>
+                                <span>900 ms (Svært myk/treg)</span>
                             </div>
                         </div>
 
@@ -653,7 +695,7 @@
                             </div>
                             <div class="slider-limits">
                                 <span>0.00 (Ingen)</span>
-                                <span style="color: var(--color-warning); font-weight: 600;">0.70 (KOLS standard)</span>
+                                <span style="font-weight: 600;">0.70 (KOLS)</span>
                                 <span>1.00 (Maksimal)</span>
                             </div>
                         </div>
@@ -762,111 +804,12 @@
                     </div>
                 </div>
 
-                <!-- Fane 3: Avansert & Lekkasje (A5 & A7) -->
+                <!-- Fane 3: Alarmgrenser -->
                 <div class="tab-pane" id="tab-advanced" style="display: none;">
                     <div class="controls-grid">
                         
-                        <!-- Inspiratorisk avslutning (Cycling / E-Sense: 5–90%) -->
-                        <div class="control-card" id="cardCycling">
-                            <div class="control-header">
-                                <div>
-                                    <div class="control-label" id="labelCycling">Inspiratorisk avslutning (Cycling / E-Sense)</div>
-                                    <div class="control-sublabel" id="sublabelCycling">% av toppflow som avslutter innpustet</div>
-                                </div>
-                                <span class="control-value-pill" id="badgeCycling">25 %</span>
-                            </div>
-                            <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderCycling" data-step="-5">-</button>
-                                <input type="range" id="sliderCycling" min="5" max="90" step="5" value="25">
-                                <button class="step-btn" data-target="sliderCycling" data-step="5">+</button>
-                            </div>
-                            <div class="slider-limits">
-                                <span>5 % (Sen avslutning / lang Ti)</span>
-                                <span id="labelCyclingStatus" style="color: var(--color-accent);">Gjelder i PS-modus</span>
-                                <span>90 % (Tidlig avslutning / kort Ti)</span>
-                            </div>
-                        </div>
-
-                        <!-- Maksimal inspirasjonstid (Ti max) -->
-                        <div class="control-card" id="cardTiMax">
-                            <div class="control-header">
-                                <div>
-                                    <div class="control-label">Maksimal inspirasjonstid (Ti<sub>max</sub>)</div>
-                                    <div class="control-sublabel">Sikkerhetsgrense for tidsavbrutt innpust i PS (Timax)</div>
-                                </div>
-                                <span class="control-value-pill" id="badgeTiMax">2.0 s</span>
-                            </div>
-                            <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderTiMax" data-step="-0.1">-</button>
-                                <input type="range" id="sliderTiMax" min="0.8" max="3.0" step="0.1" value="2.0">
-                                <button class="step-btn" data-target="sliderTiMax" data-step="0.1">+</button>
-                            </div>
-                            <div class="slider-limits">
-                                <span>0.8 s (Kort tak)</span>
-                                <span>3.0 s (Langt tak)</span>
-                            </div>
-                        </div>
-
-                        <!-- Stigetid / Rise Time -->
-                        <div class="control-card">
-                            <div class="control-header">
-                                <div>
-                                    <div class="control-label">Stigetid (Rise Time)</div>
-                                    <div class="control-sublabel">Tid maskinen bruker på å nå innstilt IPAP</div>
-                                </div>
-                                <span class="control-value-pill" id="badgeRiseTime">150 ms</span>
-                            </div>
-                            <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderRiseTime" data-step="-25">-</button>
-                                <input type="range" id="sliderRiseTime" min="50" max="900" step="25" value="150">
-                                <button class="step-btn" data-target="sliderRiseTime" data-step="25">+</button>
-                            </div>
-                            <div class="slider-limits">
-                                <span>50 ms (Bratt/rask)</span>
-                                <span class="clinical-limit-marker" style="color: var(--color-warning); font-weight: 600;" title="Klinisk standard øvre grense (400 ms)">| 400 ms (Klinisk maks)</span>
-                                <span>900 ms (Svært myk/treg)</span>
-                            </div>
-                        </div>
-
-                        <!-- Maskelekkasje (A7) -->
-                        <div class="control-card">
-                            <div class="control-header">
-                                <div>
-                                    <div class="control-label">Maskelekkasje (@ 10 cmH₂O)</div>
-                                    <div class="control-sublabel">Kontinuerlig lekkasje i begge faser (L/min @ 10 cmH₂O)</div>
-                                </div>
-                                <span class="control-value-pill" id="badgeLeak">0 L/min</span>
-                            </div>
-                            <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderLeak" data-step="-2">-</button>
-                                <input type="range" id="sliderLeak" min="0" max="60" step="2" value="0">
-                                <button class="step-btn" data-target="sliderLeak" data-step="2">+</button>
-                            </div>
-                            <div class="slider-limits">
-                                <span>0 L/min (Tett maske)</span>
-                                <span>30 L/min (Moderat)</span>
-                                <span>60 L/min (Svært stor)</span>
-                            </div>
-                        </div>
-
-                        <!-- Pedagogisk Lekkasje-visualisering (A7) -->
-                        <div class="control-card" style="grid-column: 1 / -1; border-left: 3px solid var(--color-flow); background: rgba(34, 197, 94, 0.04);">
-                            <div class="control-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                                <div>
-                                    <div class="control-label" style="display: flex; align-items: center; gap: 8px; color: var(--color-flow);">
-                                        <span>🔬 Sann lungeflow & volum (Lekkasje-visualisering)</span>
-                                    </div>
-                                    <div class="control-sublabel">Tegner pasientens sanne lungeflow (Q<sub>lunge</sub>) og lungevolum som stiplede referansekurver over maskinens målinger</div>
-                                </div>
-                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; background: rgba(15, 23, 42, 0.7); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                                    <input type="checkbox" id="checkShowTrueCurves" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--color-flow);">
-                                    <span style="font-size: 13px; font-weight: 600; color: var(--text-bright);">Vis sann lungeflow & volum</span>
-                                </label>
-                            </div>
-                        </div>
-
                         <!-- Seksjonsoverskrift: Justerbare NIV Alarmgrenser (C3) -->
-                        <div class="control-card" style="grid-column: 1 / -1; border-left: 3px solid var(--color-danger); background: rgba(239, 68, 68, 0.05); margin-top: 6px;">
+                        <div class="control-card" style="grid-column: 1 / -1; border-left: 3px solid var(--color-danger); background: rgba(239, 68, 68, 0.05);">
                             <div class="control-header">
                                 <div>
                                     <div class="control-label" style="color: #fca5a5; display: flex; align-items: center; gap: 6px;">
@@ -884,89 +827,149 @@
                                     <div class="control-label">Apné-forsinkelse (Apnea Delay)</div>
                                     <div class="control-sublabel">Tid uten levert pust før apné-alarm utløses</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeApneaDelay" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.4);">15 s</span>
+                                <span class="control-value-pill" id="badgeApneaDelay" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.4);">20 s</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderApneaDelay" data-step="-1">-</button>
-                                <input type="range" id="sliderApneaDelay" min="5" max="30" step="1" value="15">
+                                <input type="range" id="sliderApneaDelay" min="5" max="30" step="1" value="20">
                                 <button class="step-btn" data-target="sliderApneaDelay" data-step="1">+</button>
                             </div>
                             <div class="slider-limits">
-                                <span>5 s (Strenge krav)</span>
-                                <span style="color: var(--color-warning);">15 s (Standard)</span>
-                                <span>30 s (Lang)</span>
+                                <span>5 s</span>
+                                <span>20 s</span>
+                                <span>30 s</span>
                             </div>
                         </div>
 
-                        <!-- Høy lekkasjegrense -->
+                        <!-- Høy lekkasje -->
                         <div class="control-card">
                             <div class="control-header">
                                 <div>
-                                    <div class="control-label">Alarmgrense: Høy lekkasje</div>
-                                    <div class="control-sublabel">Utløses ved lekkasje over grensen i > 10 sekunder</div>
+                                    <div class="control-label">Høy lekkasje</div>
+                                    <div class="control-sublabel" id="leakSublabel">Utløses ved lekkasje over grensen i > 10 sekunder</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeAlarmLeak">40 L/min</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="trigger-mode-toggle">
+                                        <button class="btn-toggle active" id="btnLeakUnitLmin" data-unit="lmin">L/min</button>
+                                        <button class="btn-toggle" id="btnLeakUnitPercent" data-unit="percent">%</button>
+                                    </div>
+                                    <span class="control-value-pill" id="badgeAlarmLeak">40 L/min</span>
+                                </div>
                             </div>
                             <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderAlarmLeak" data-step="-5">-</button>
+                                <button class="step-btn" id="btnAlarmLeakStepDown" data-target="sliderAlarmLeak" data-step="-5">-</button>
                                 <input type="range" id="sliderAlarmLeak" min="10" max="60" step="5" value="40">
-                                <button class="step-btn" data-target="sliderAlarmLeak" data-step="5">+</button>
+                                <button class="step-btn" id="btnAlarmLeakStepUp" data-target="sliderAlarmLeak" data-step="5">+</button>
                             </div>
                             <div class="slider-limits">
-                                <span>10 L/min</span>
-                                <span style="color: var(--color-warning);">40 L/min (Standard)</span>
-                                <span>60 L/min</span>
+                                <span id="leakLimitMin">10 L/min</span>
+                                <span id="leakLimitMid">40 L/min</span>
+                                <span id="leakLimitMax">60 L/min</span>
                             </div>
                         </div>
 
-                        <!-- Lavt tidalvolum grense -->
+                        <!-- Tidevolum (Lav og Høy grense) -->
                         <div class="control-card">
                             <div class="control-header">
                                 <div>
-                                    <div class="control-label">Alarmgrense: Lavt V<sub>TE</sub></div>
-                                    <div class="control-sublabel">Utløses hvis V<sub>TE</sub> er under grensen i 3 påfølgende pust</div>
+                                    <div class="control-label">Tidevolum</div>
+                                    <div class="control-sublabel">Alarm hvis V<sub>TE</sub> er utenfor grensene i 3 påfølgende pust</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeAlarmLowVt">300 ml</span>
-                            </div>
-                            <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderAlarmLowVt" data-step="-25">-</button>
-                                <input type="range" id="sliderAlarmLowVt" min="100" max="600" step="25" value="300">
-                                <button class="step-btn" data-target="sliderAlarmLowVt" data-step="25">+</button>
-                            </div>
-                            <div class="slider-limits">
-                                <span>100 ml</span>
-                                <span style="color: var(--color-warning);">300 ml (Standard)</span>
-                                <span>600 ml</span>
-                            </div>
-                        </div>
-
-                        <!-- Høy frekvens grense -->
-                        <div class="control-card">
-                            <div class="control-header">
-                                <div>
-                                    <div class="control-label">Alarmgrense: Høy frekvens (RR<sub>tot</sub>)</div>
-                                    <div class="control-sublabel">Utløses hvis målt RR<sub>tot</sub> overstiger grensen</div>
+                                <div style="display: flex; gap: 6px;">
+                                    <span class="control-value-pill" id="badgeAlarmLowVt" style="font-size: 11.5px; padding: 2px 6px;" title="Lav grense">Lav: 300 ml</span>
+                                    <span class="control-value-pill" id="badgeAlarmHighVt" style="font-size: 11.5px; padding: 2px 6px;" title="Høy grense">Høy: 800 ml</span>
                                 </div>
-                                <span class="control-value-pill" id="badgeAlarmHighRr">30 /min</span>
                             </div>
-                            <div class="slider-wrapper">
-                                <button class="step-btn" data-target="sliderAlarmHighRr" data-step="-1">-</button>
-                                <input type="range" id="sliderAlarmHighRr" min="20" max="50" step="1" value="30">
-                                <button class="step-btn" data-target="sliderAlarmHighRr" data-step="1">+</button>
+                            <!-- Lav grense -->
+                            <div style="margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 2px;">
+                                    <span>Lav grense:</span>
+                                    <strong id="labelAlarmLowVtVal" style="font-family: var(--font-mono); color: var(--text-main);">300 ml</strong>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <button class="step-btn" data-target="sliderAlarmLowVt" data-step="-25">-</button>
+                                    <input type="range" id="sliderAlarmLowVt" min="100" max="600" step="25" value="300">
+                                    <button class="step-btn" data-target="sliderAlarmLowVt" data-step="25">+</button>
+                                </div>
+                                <div class="slider-limits">
+                                    <span>100 ml</span>
+                                    <span>300 ml</span>
+                                    <span>600 ml</span>
+                                </div>
                             </div>
-                            <div class="slider-limits">
-                                <span>20 /min</span>
-                                <span style="color: var(--color-warning);">30 /min (Standard)</span>
-                                <span>50 /min</span>
+                            <!-- Høy grense -->
+                            <div style="margin-top: 8px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 2px;">
+                                    <span>Høy grense:</span>
+                                    <strong id="labelAlarmHighVtVal" style="font-family: var(--font-mono); color: var(--text-main);">800 ml</strong>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <button class="step-btn" data-target="sliderAlarmHighVt" data-step="-50">-</button>
+                                    <input type="range" id="sliderAlarmHighVt" min="300" max="1000" step="25" value="800">
+                                    <button class="step-btn" data-target="sliderAlarmHighVt" data-step="50">+</button>
+                                </div>
+                                <div class="slider-limits">
+                                    <span>300 ml</span>
+                                    <span>650 ml</span>
+                                    <span>1000 ml</span>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Høyt trykk grense -->
+                        <!-- Respirasjonsfrekvens (Lav og Høy grense) -->
                         <div class="control-card">
                             <div class="control-header">
                                 <div>
-                                    <div class="control-label">Alarmgrense: Høyt trykk (ΔP over IPAP)</div>
-                                    <div class="control-sublabel">Utløses ved PIP over innstilt IPAP + tillegg</div>
+                                    <div class="control-label">Respirasjonsfrekvens</div>
+                                    <div class="control-sublabel">Alarm hvis målt RR<sub>tot</sub> er under lav eller over høy grense</div>
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <span class="control-value-pill" id="badgeAlarmLowRr" style="font-size: 11.5px; padding: 2px 6px;" title="Lav grense">Lav: 0 /min</span>
+                                    <span class="control-value-pill" id="badgeAlarmHighRr" style="font-size: 11.5px; padding: 2px 6px;" title="Høy grense">Høy: 30 /min</span>
+                                </div>
+                            </div>
+                            <!-- Lav grense -->
+                            <div style="margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 2px;">
+                                    <span>Lav grense:</span>
+                                    <strong id="labelAlarmLowRrVal" style="font-family: var(--font-mono); color: var(--text-main);">0 /min (Av)</strong>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <button class="step-btn" data-target="sliderAlarmLowRr" data-step="-1">-</button>
+                                    <input type="range" id="sliderAlarmLowRr" min="0" max="25" step="1" value="0">
+                                    <button class="step-btn" data-target="sliderAlarmLowRr" data-step="1">+</button>
+                                </div>
+                                <div class="slider-limits">
+                                    <span>0 /min (Av)</span>
+                                    <span>12 /min</span>
+                                    <span>25 /min</span>
+                                </div>
+                            </div>
+                            <!-- Høy grense -->
+                            <div style="margin-top: 8px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 2px;">
+                                    <span>Høy grense:</span>
+                                    <strong id="labelAlarmHighRrVal" style="font-family: var(--font-mono); color: var(--text-main);">30 /min</strong>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <button class="step-btn" data-target="sliderAlarmHighRr" data-step="-1">-</button>
+                                    <input type="range" id="sliderAlarmHighRr" min="20" max="50" step="1" value="30">
+                                    <button class="step-btn" data-target="sliderAlarmHighRr" data-step="1">+</button>
+                                </div>
+                                <div class="slider-limits">
+                                    <span>20 /min</span>
+                                    <span>35 /min</span>
+                                    <span>50 /min</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Topptrykk -->
+                        <div class="control-card">
+                            <div class="control-header">
+                                <div>
+                                    <div class="control-label">Topptrykk</div>
+                                    <div class="control-sublabel">Utløses ved PIP over innstilt IPAP + tillegg (ΔP)</div>
                                 </div>
                                 <span class="control-value-pill" id="badgeAlarmHighPpeak">+5 cmH₂O</span>
                             </div>
@@ -977,7 +980,7 @@
                             </div>
                             <div class="slider-limits">
                                 <span>+2 cmH₂O</span>
-                                <span style="color: var(--color-warning);">+5 cmH₂O (Standard)</span>
+                                <span>+5 cmH₂O</span>
                                 <span>+10 cmH₂O</span>
                             </div>
                         </div>
@@ -1058,7 +1061,7 @@
                             </div>
                             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
                                 <p>• <strong>15 s (Mønsteroversikt):</strong> Fast sveipetid på 15 sekunder gir bred oversikt over flere pustesykluser for å oppdage mønstre over tid, som periodisk autotrigging, ujevn pusterytme og akkumulert hyperinflasjon.</p>
-                                <p>• <strong>Automatisk Y-skalering (Standard):</strong> Y-aksene tilpasser seg automatisk kurvetoppene med klinisk trygge minimumsgrenser (Gul/Paw min 15 cmH₂O, Grønn/Flow min ±30 L/min, Blå/Volum min 200 ml). Dette sikrer at kurvene forblir lettleste og aldri klippes av aksene.</p>
+                                <p>• <strong>Automatisk Y-skalering:</strong> Y-aksene tilpasser seg automatisk kurvetoppene med klinisk trygge minimumsgrenser (Gul/Paw min 15 cmH₂O, Grønn/Flow min ±30 L/min, Blå/Volum min 200 ml). Dette sikrer at kurvene forblir lettleste og aldri klippes av aksene.</p>
                             </div>
                         </div>
 

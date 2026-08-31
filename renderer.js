@@ -48,8 +48,8 @@ class WaveformRenderer {
             peepLine: 'rgba(251, 191, 36, 0.35)',   // PEEP/EPAP referanselinje
             clipIndicator: '#f43f5e',                // Rødrosa klippeindikator ved akselås (C9)
             
-            text: '#8295b5',
-            textDim: '#4f6485',
+            text: '#FFFFFF',
+            textDim: '#FFFFFF',
             textBright: '#ffffff',
             triggerMark: '#d946ef'     // Triggermarkør (Hamilton lilla/magenta)
         };
@@ -596,7 +596,7 @@ class WaveformRenderer {
         ctx.textAlign = 'left';
         let lineY = cardY + 16;
 
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = '#FFFFFF';
         ctx.font = '600 10px monospace';
         ctx.fillText(`⏱ TID: ${timeSec.toFixed(2)} s`, cardX + 10, lineY);
 
@@ -676,7 +676,7 @@ class WaveformRenderer {
             ctx.fillText(text1, calloutX + 10, calloutY + 14);
 
             if (text2) {
-                ctx.fillStyle = '#f1f5f9';
+                ctx.fillStyle = '#FFFFFF';
                 ctx.font = '10px sans-serif';
                 ctx.fillText(text2, calloutX + 10, calloutY + 28);
             }
