@@ -171,7 +171,7 @@ class VentilatorSimulator {
             
             // FASE 6 (D2): ST-backup innstillinger
             backupRate: 12,         // /min (Backup-frekvens ved fravær av pasientpust: 0–30 /min)
-            stActive: true,         // boolean - ST-modus aktiv (standard på)
+            stActive: false,        // boolean - ST-modus inaktiv (standard av)
             
             // FASE 4 (C3): Alarmgrenser med kliniske standardverdier
             apneaDelay: 15,         // sekunder - forsinkelse før apné-alarm utløses (5–30 s)

@@ -21,7 +21,7 @@
 
         <div class="status-badge-container">
             <div class="mode-badge" id="modeBadge">
-                <span>Modus: Spontan / Trykkstøtte (PSV / NIV-ST)</span>
+                <span>Modus: Spontan / Trykkstøtte (PSV)</span>
             </div>
         </div>
 
@@ -298,7 +298,8 @@
             <!-- Fane-knapper for innstillinger -->
             <div class="panel-tabs">
                 <button class="tab-btn active" data-tab="tab-machine">Respiratorinnstillinger</button>
-                <button class="tab-btn" data-tab="tab-patient">Pasientfysiologi</button>
+                <!-- Pasientfysiologi er midlertidig skjult fra UI, men bevares for senere aktivering -->
+                <button class="tab-btn" data-tab="tab-patient" style="display: none;">Pasientfysiologi</button>
                 <button class="tab-btn" data-tab="tab-advanced">Avansert & Lekkasje</button>
                 <button class="tab-btn" data-tab="tab-curves">Kurveforståelse</button>
             </div>
@@ -310,17 +311,18 @@
                 <div class="tab-pane active" id="tab-machine">
                     <div class="controls-grid">
                         
-                        <!-- D1: Modusvelger (PS / PC) -->
+                        <!-- D1: Modusvelger (PS / PC - PC er skjult i denne versjonen) -->
                         <div class="control-card" style="grid-column: 1 / -1; border-left: 3px solid var(--color-accent); background: rgba(56, 189, 248, 0.04);">
                             <div class="control-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                                 <div>
                                     <div class="control-label" style="color: var(--color-accent); font-size: 14px;">🎛️ Ventilasjonsmodus</div>
-                                    <div class="control-sublabel">PS: Pasientstyrt innpuststid via flow-cycling | PC: Fast maskinsatt innpuststid (Ti)</div>
+                                    <div class="control-sublabel">PS: Pasientstyrt innpuststid via flow-cycling<!-- | PC: Fast maskinsatt innpuststid (Ti) --></div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <select id="selectMode" class="select-mode-dropdown" title="Velg ventilasjonsmodus">
                                         <option value="PS" selected>PS (Trykkstøtte / PSV)</option>
-                                        <option value="PC">PC (Trykkontroll / PCV)</option>
+                                        <!-- PC-modus er midlertidig skjult fra UI, men bevares for senere aktivering -->
+                                        <option value="PC" style="display: none;" hidden disabled>PC (Trykkontroll / PCV)</option>
                                     </select>
                                 </div>
                             </div>
@@ -367,8 +369,8 @@
                             </div>
                         </div>
 
-                        <!-- D1: PC-modus Inspirasjonstid Ti (Aktiv i PC-modus, grået i PS-modus) -->
-                        <div class="control-card" id="cardTiSet">
+                        <!-- D1: PC-modus Inspirasjonstid Ti (Skjult i denne versjonen da kun PS-modus er aktiv, bevares for senere aktivering) -->
+                        <div class="control-card" id="cardTiSet" style="display: none;">
                             <div class="control-header">
                                 <div>
                                     <div class="control-label" id="labelTiSet">Inspirasjonstid (T<sub>i,innstilt</sub>)</div>
@@ -388,16 +390,16 @@
                             </div>
                         </div>
 
-                        <!-- D2: ST-modus & Backup-frekvens (NIV-ST) -->
-                        <div class="control-card" id="cardStBackup" style="border-left: 3px solid #a855f7; background: rgba(168, 85, 247, 0.04);">
+                        <!-- D2: ST-modus & Backup-frekvens (NIV-ST) er skjult fra UI og deaktivert per instruks -->
+                        <div class="control-card" id="cardStBackup" style="display: none; border-left: 3px solid #a855f7; background: rgba(168, 85, 247, 0.04);">
                             <div class="control-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                                 <div>
                                     <div class="control-label" style="color: #c084fc;">NIV-ST Backup-frekvens</div>
                                     <div class="control-sublabel">Maskinutløst pust (■) ved fravær av pasientinnsats</div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 700; color: #e9d5ff; background: rgba(15, 23, 42, 0.7); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(168, 85, 247, 0.3);">
-                                        <input type="checkbox" id="checkStActive" checked style="accent-color: #a855f7; cursor: pointer;">
+                                    <label id="labelStActive" style="display: none; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 700; color: #e9d5ff; background: rgba(15, 23, 42, 0.7); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(168, 85, 247, 0.3);">
+                                        <input type="checkbox" id="checkStActive" style="accent-color: #a855f7; cursor: pointer;">
                                         <span>ST Aktiv</span>
                                     </label>
                                     <span class="control-value-pill" id="badgeBackupRate" style="color: #c084fc; border-color: rgba(168, 85, 247, 0.4);">12 /min</span>
@@ -435,8 +437,8 @@
                             </div>
                         </div>
 
-                        <!-- Respirasjonsfrekvens (RR innstilt / backup) -->
-                        <div class="control-card">
+                        <!-- Respirasjonsfrekvens (RR innstilt / backup - skjult i denne versjonen da kun PS-modus er aktiv, bevares for senere aktivering) -->
+                        <div class="control-card" id="cardRate" style="display: none;">
                             <div class="control-header">
                                 <div>
                                     <div class="control-label">Innstilt frekvens (Rate / A/C)</div>

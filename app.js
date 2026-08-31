@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 0,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 90,
             resistance: 5,
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 0,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 10,
             compliance: 90,
             resistance: 5,
@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 0,
             triggerMode: 'flow',
             triggerVal: 5.0,
-            stActive: true,
+            stActive: false,
             backupRate: 10,
             compliance: 90,
             resistance: 5,
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 40,
             triggerMode: 'flow',
             triggerVal: 1.0,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 50,
             resistance: 5,
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 5,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 50,
             resistance: 5,
@@ -418,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 5,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 50,
             resistance: 5,
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 5,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 50,
             resistance: 5,
@@ -488,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 5,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 50,
             resistance: 5,
@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 0,
             triggerMode: 'flow',
             triggerVal: 2.0,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 70,
             resistance: 18,
@@ -559,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 0,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 12,
             compliance: 70,
             resistance: 18,
@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
             leak: 5,
             triggerMode: 'flow',
             triggerVal: 1.5,
-            stActive: true,
+            stActive: false,
             backupRate: 14,
             compliance: 50,
             resistance: 5,
@@ -674,13 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // PS-modus (Standard)
             if (modeBadge) {
-                const stActive = checkStActive ? checkStActive.checked : simulator.settings.stActive;
-                const backupRate = simulator.settings.backupRate || 0;
-                if (stActive && backupRate > 0) {
-                    modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV / NIV-ST)</span>';
-                } else {
-                    modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV, uten ST-backup)</span>';
-                }
+                modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV)</span>';
             }
             if (labelPressureMode) labelPressureMode.textContent = 'IPAP (Inspiratorisk trykk)';
             if (sublabelPressureMode) sublabelPressureMode.textContent = 'Trykkstøtte levert under innpust';
@@ -931,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const deltaP = ipap - epap;
         const tiSet = sliders.tiSet ? parseFloat(sliders.tiSet.value) : 1.0;
         const backupRate = sliders.backupRate ? parseInt(sliders.backupRate.value, 10) : 12;
-        const stActive = checkStActive ? checkStActive.checked : true;
+        const stActive = false;
         const rr = parseInt(sliders.rr.value, 10);
         const fio2 = parseInt(sliders.fio2.value, 10);
         const compliance = parseFloat(sliders.compliance.value);
@@ -964,7 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
         simulator.settings.epap = epap;
         simulator.settings.tiSet = tiSet;
         simulator.settings.backupRate = backupRate;
-        simulator.settings.stActive = stActive;
+        simulator.settings.stActive = false;
         simulator.settings.rr = rr;
         simulator.settings.fio2 = fio2;
         simulator.settings.riseTime = riseTime;
@@ -1047,11 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // C4: Oppdater modusetiketten dynamisk når ST-innstillinger endres
         if (simulator.settings.mode === 'PS' && modeBadge) {
-            if (stActive && backupRate > 0) {
-                modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV / NIV-ST)</span>';
-            } else {
-                modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV, uten ST-backup)</span>';
-            }
+            modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV)</span>';
         }
         if (!isScenarioActive) {
             updateInsights();
@@ -1193,7 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sliders.epap) sliders.epap.value = scen.epap;
         if (sliders.tiSet) sliders.tiSet.value = scen.tiSet;
         if (sliders.backupRate) sliders.backupRate.value = scen.backupRate;
-        if (checkStActive) checkStActive.checked = scen.stActive;
+        if (checkStActive) checkStActive.checked = false;
         if (sliders.rr) sliders.rr.value = scen.rr;
         if (sliders.fio2) sliders.fio2.value = scen.fio2;
         if (sliders.riseTime) sliders.riseTime.value = scen.riseTime;

@@ -12,7 +12,13 @@ const path = require('path');
 global.window = {};
 const simCode = fs.readFileSync(path.join(__dirname, 'simulator.js'), 'utf8');
 eval(simCode);
-const VentilatorSimulator = global.window.VentilatorSimulator;
+const BaseSimulator = global.window.VentilatorSimulator;
+class VentilatorSimulator extends BaseSimulator {
+    constructor(config) {
+        super(config);
+        this.settings.stActive = true; // Standard på under valideringstester av ventilatorfysikk
+    }
+}
 
 console.log('========================================================================');
 console.log('  KOMPLETT VALIDERINGSBATTERI: ALLE 18 TESTER (E1 – E18)');
