@@ -796,6 +796,7 @@ canvas#waveformCanvas {
     padding: 2px 8px;
     border-radius: 4px;
     transition: all 0.2s ease;
+    white-space: nowrap;
 }
 
 /* Sliders */

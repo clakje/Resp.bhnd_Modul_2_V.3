@@ -21,7 +21,7 @@
 
         <div class="status-badge-container">
             <div class="mode-badge" id="modeBadge">
-                <span>Modus: Spontan / Trykkstøtte (PSV)</span>
+                <span>Modus: BPAP</span>
             </div>
         </div>
 
@@ -128,16 +128,6 @@
                 <!-- Sekundære utvidede målinger (D5) -->
                 <div class="secondary-metrics-panel">
                     <div class="secondary-grid">
-                        <!-- PIP / Pplat & Motstandstrykk (C5) -->
-                        <div class="sub-metric-card" id="cardSecPipPplat">
-                            <div class="sub-metric-header">
-                                <span class="sub-metric-title">PIP / P<sub>plat</sub></span>
-                                <span class="sub-metric-unit">cmH₂O</span>
-                            </div>
-                            <div class="sub-metric-val" id="dispPipPplat">14.0 / 14.0</div>
-                            <div class="sub-metric-foot" id="dispDeltaPres">ΔP<sub>res</sub>: 0.0 cmH₂O</div>
-                        </div>
-
                         <!-- PEEP / PEEPi / PEEPtot -->
                         <div class="sub-metric-card" id="cardSecPeep">
                             <div class="sub-metric-header">
@@ -146,46 +136,6 @@
                             </div>
                             <div class="sub-metric-val" id="dispPeepPeepi">5.0 / 0.0</div>
                             <div class="sub-metric-foot" id="dispPeepTot">PEEP<sub>tot</sub>: 5.0 cmH₂O</div>
-                        </div>
-
-                        <!-- VTI / VTE & Lekkasje per pust -->
-                        <div class="sub-metric-card" id="cardSecVtiVte">
-                            <div class="sub-metric-header">
-                                <span class="sub-metric-title">V<sub>TI</sub> / V<sub>TE</sub></span>
-                                <span class="sub-metric-unit">ml</span>
-                            </div>
-                            <div class="sub-metric-val" id="dispVtiVte">450 / 450</div>
-                            <div class="sub-metric-foot" id="dispLeakPerBreath">ΔV (Lekk): 0 ml</div>
-                        </div>
-
-                        <!-- Vt / kg IBW (Idealvekt) -->
-                        <div class="sub-metric-card" id="cardSecVtPerKg">
-                            <div class="sub-metric-header">
-                                <span class="sub-metric-title">V<sub>t</sub> / kg IBW</span>
-                                <span class="sub-metric-unit">ml/kg</span>
-                            </div>
-                            <div class="sub-metric-val" id="dispVtPerKg">6.4</div>
-                            <div class="sub-metric-foot" id="dispIbwFoot">IBW: 70 kg</div>
-                        </div>
-
-                        <!-- Ti / Te / I:E (C6) -->
-                        <div class="sub-metric-card" id="cardSecTiTe">
-                            <div class="sub-metric-header">
-                                <span class="sub-metric-title">T<sub>i</sub> / T<sub>e</sub></span>
-                                <span class="sub-metric-unit">s</span>
-                            </div>
-                            <div class="sub-metric-val" id="dispTiTe">0.9 / 3.3</div>
-                            <div class="sub-metric-foot" id="dispIeRatio">I:E 1:3,7 (21%)</div>
-                        </div>
-
-                        <!-- RRspont / % Spontane pust (C1) -->
-                        <div class="sub-metric-card" id="cardSecRrSpont">
-                            <div class="sub-metric-header">
-                                <span class="sub-metric-title">RR<sub>spont</sub> (% Spont)</span>
-                                <span class="sub-metric-unit">/min</span>
-                            </div>
-                            <div class="sub-metric-val" id="dispRrSpont">15 <span class="sub-val-secondary" id="dispSpontPct">(100%)</span></div>
-                            <div class="sub-metric-foot" id="dispSpontFoot">av 15 pust siste 60s</div>
                         </div>
 
                         <!-- Lekkasje & Lekkasje % -->
@@ -197,39 +147,6 @@
                             <div class="sub-metric-val" id="dispLeakSec">0.0 <span class="sub-val-secondary" id="dispLeakPctSec">(0%)</span></div>
                             <div class="sub-metric-foot" id="dispLeakStatus">Tett krets</div>
                         </div>
-
-                        <!-- Asynkroni-indeks & Cyclingårsak -->
-                        <div class="sub-metric-card" id="cardSecAsynchrony">
-                            <div class="sub-metric-header">
-                                <span class="sub-metric-title">Asynkroni-indeks</span>
-                                <span class="sub-metric-unit">%</span>
-                            </div>
-                            <div class="sub-metric-val" id="dispAsynchronyIndex">0 %</div>
-                            <div class="sub-metric-foot" id="dispCycleReasonFoot">Cycling: Flow (25%)</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Innstilte parametere (Tydelig merket som INNSTILT) -->
-                <div class="readout-section-header" style="margin-top: 4px;">
-                    <span class="readout-group-title">Innstilte verdier</span>
-                    <span class="readout-type-badge badge-set">INNSTILT</span>
-                </div>
-                <div class="set-parameters-box">
-                    <div class="set-param-item">
-                        <div class="param-name">IPAP</div>
-                        <div class="param-val" id="dispIpap">14</div>
-                        <div class="param-unit">cmH₂O</div>
-                    </div>
-                    <div class="set-param-item">
-                        <div class="param-name">EPAP</div>
-                        <div class="param-val" id="dispEpap">5</div>
-                        <div class="param-unit">cmH₂O</div>
-                    </div>
-                    <div class="set-param-item">
-                        <div class="param-name">FiO₂</div>
-                        <div class="param-val" id="dispFio2">30%</div>
-                        <div class="param-unit">O₂</div>
                     </div>
                 </div>
             </aside>
@@ -316,11 +233,11 @@
                             <div class="control-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                                 <div>
                                     <div class="control-label" style="color: var(--color-accent); font-size: 14px;">🎛️ Ventilasjonsmodus</div>
-                                    <div class="control-sublabel">PS: Pasientstyrt innpuststid via flow-cycling<!-- | PC: Fast maskinsatt innpuststid (Ti) --></div>
+                                    <div class="control-sublabel">BPAP: Pasientstyrt innpuststid via flow-cycling<!-- | PC: Fast maskinsatt innpuststid (Ti) --></div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <select id="selectMode" class="select-mode-dropdown" title="Velg ventilasjonsmodus">
-                                        <option value="PS" selected>PS (Trykkstøtte / PSV)</option>
+                                        <option value="PS" selected>BPAP</option>
                                         <!-- PC-modus er midlertidig skjult fra UI, men bevares for senere aktivering -->
                                         <option value="PC" style="display: none;" hidden disabled>PC (Trykkontroll / PCV)</option>
                                     </select>
@@ -968,20 +885,23 @@
                         <div class="control-card">
                             <div class="control-header">
                                 <div>
-                                    <div class="control-label">Topptrykk</div>
-                                    <div class="control-sublabel">Utløses ved PIP over innstilt IPAP + tillegg (ΔP)</div>
+                                    <div class="control-label">Topptrykksgrense (P-maks)</div>
+                                    <div class="control-sublabel">Ventilatorens sikkerhetsbrems. Avbryter innpust umiddelbart og alarmerer hvis trykket når grensen.</div>
                                 </div>
-                                <span class="control-value-pill" id="badgeAlarmHighPpeak">+5 cmH₂O</span>
+                                <span class="control-value-pill" id="badgeAlarmHighPpeak">40 cmH₂O</span>
                             </div>
                             <div class="slider-wrapper">
                                 <button class="step-btn" data-target="sliderAlarmHighPpeak" data-step="-1">-</button>
-                                <input type="range" id="sliderAlarmHighPpeak" min="2" max="10" step="1" value="5">
+                                <input type="range" id="sliderAlarmHighPpeak" min="0" max="50" step="1" value="40">
                                 <button class="step-btn" data-target="sliderAlarmHighPpeak" data-step="1">+</button>
                             </div>
                             <div class="slider-limits">
-                                <span>+2 cmH₂O</span>
-                                <span>+5 cmH₂O</span>
-                                <span>+10 cmH₂O</span>
+                                <span>0 cmH₂O</span>
+                                <span>25 cmH₂O</span>
+                                <span>50 cmH₂O</span>
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.4;">
+                                ℹ️ Den effektive sikkerhetsgrensen som kutter innpustet ligger ofte 10 cmH₂O under innstilt alarmgrense for å helgardere at lungene aldri opplever for høyt trykk. Dette fungerer som en innebygd sikkerhetsbrems, men den nøyaktige marginen kan skille seg fra produsent til produsent.
                             </div>
                         </div>
 
@@ -1001,6 +921,7 @@
                                 <p>• <strong>Bunnlinje (0 cmH₂O):</strong> Atmosfærisk nulltrykk angis av den heltrukne hvite linjen.</p>
                                 <p>• <strong>PEEP / EPAP-nivå:</strong> Stiplet gul linje markerer basetrykket pasienten hviler på under ekspirasjon.</p>
                                 <p>• <strong>Trykkstøtte (IPAP):</strong> Ved trigging stiger trykket mot innstilt IPAP. Rask stigetid gir et kort trykkoversving (overshoot).</p>
+                                <p>• <strong>Topptrykksgrense (Sikkerhetsbrems):</strong> Øvre sikkerhetsgrense (f.eks. IPAP + 5–10 cmH₂O). Hvis luftveistrykket når grensen, avbryter ventilatoren innpustet umiddelbart for å beskytte lungene mot skade/barotraume.</p>
                             </div>
                         </div>
 

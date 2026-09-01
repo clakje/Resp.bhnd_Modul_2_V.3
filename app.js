@@ -45,27 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cardMetricRR = document.getElementById('cardMetricRR');
 
     // Sekundære måleverdier (D5)
-    const dispPipPplat = document.getElementById('dispPipPplat');
-    const dispDeltaPres = document.getElementById('dispDeltaPres');
     const dispPeepPeepi = document.getElementById('dispPeepPeepi');
     const dispPeepTot = document.getElementById('dispPeepTot');
-    const dispVtiVte = document.getElementById('dispVtiVte');
-    const dispLeakPerBreath = document.getElementById('dispLeakPerBreath');
-    const dispVtPerKg = document.getElementById('dispVtPerKg');
-    const dispIbwFoot = document.getElementById('dispIbwFoot');
-    const dispTiTe = document.getElementById('dispTiTe');
-    const dispIeRatio = document.getElementById('dispIeRatio');
-    const dispRrSpont = document.getElementById('dispRrSpont');
-    const dispSpontFoot = document.getElementById('dispSpontFoot');
     const dispLeakSec = document.getElementById('dispLeakSec');
     const dispLeakStatus = document.getElementById('dispLeakStatus');
-    const dispAsynchronyIndex = document.getElementById('dispAsynchronyIndex');
-    const dispCycleReasonFoot = document.getElementById('dispCycleReasonFoot');
-
-    // Innstilte visningsbokser
-    const dispIpap = document.getElementById('dispIpap');
-    const dispEpap = document.getElementById('dispEpap');
-    const dispFio2 = document.getElementById('dispFio2');
 
     // Modusvelger & Kort (D1)
     const selectMode = document.getElementById('selectMode');
@@ -389,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         slowRise: {
             name: 'Stigetid for treg',
-            badge: '📉 Trykkdipp',
+            badge: '📉 Trykkdipp & Skallopering',
             mode: 'PS',
             ipap: 14,
             epap: 5,
@@ -415,23 +398,23 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
-            whatYouSee: 'Avrundet trykkurve med en markant «dipp» eller skulder i starten av innpustet. Flowkurven blir lav, bred og flat.',
-            whyItHappens: 'Stigetiden er satt for tregt (800 ms) i forhold til pasientens kraftige inspirasjonsdrive (Pmus 8 cmH₂O). Pasienten «suger ned» trykket raskere enn maskinen klarer å bygge det opp.',
-            whatToDo: 'Forkort stigetiden (f.eks. til 100–150 ms) slik at maskinen raskt møter pasientens flow-etterspørsel og avlaster pustearbeidet.',
+            whatYouSee: 'Markant «trykkdipp» under EPAP og skallopering (konkav innsvingning) i starten av innpustet. Flowkurven får en bred, kuppelformet profil.',
+            whyItHappens: 'Pasienten har høy inspirasjonsdrive (Pmus 8 cmH₂O). Fordi stigetiden er satt for tregt (800 ms), struper maskinen flowleveransen. Pasienten genererer negativt trykk raskere enn maskinen bygger opp positivt trykk, og suger ned masketrykket (flow starvation / skallopering).',
+            whatToDo: 'Forkort stigetiden (f.eks. til 100–150 ms) slik at maskinen raskt møter pasientens flow-etterspørsel og avlaster pasientens pustearbeid.',
             annotations: [
-                { track: 'paw', relX: 0.38, relY: 0.55, title: 'Trykkdipp', desc: 'Pasienten suger ned trykket pga. treg stigetid' }
+                { track: 'paw', relX: 0.38, relY: 0.55, title: 'Trykkdipp / Skallopering', desc: 'Pasienten suger ned trykket pga. treg stigetid (flow starvation)' }
             ]
         },
         fastRise: {
             name: 'Stigetid for rask',
             badge: '📈 Trykkoversving',
             mode: 'PS',
-            ipap: 14,
+            ipap: 12,
             epap: 5,
             rr: 14,
             fio2: 30,
-            riseTime: 50,
-            cycling: 25,
+            riseTime: 75,
+            cycling: 35,
             tiSet: 1.0,
             tiMax: 2.0,
             leak: 5,
@@ -451,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cardiac: 0.0,
             height: 175,
             whatYouSee: 'Skarp trykk-spike (overshoot) over innstilt IPAP ved innpuststart, etterfulgt av bratt flowforkant, tidlig avslutning og redusert tidalvolum.',
-            whyItHappens: 'Blåseren akselererer for brått (50 ms) inn i luftveismotstanden. Trykksjokket gjør at flow faller prematurt til cycling-terskelen.',
+            whyItHappens: 'Blåseren akselererer for brått (75 ms) inn i luftveismotstanden. Trykksjokket gjør at flow faller prematurt til cycling-terskelen.',
             whatToDo: 'Myk opp stigetiden (f.eks. til 150–200 ms) for å unngå trykk-spikes og gi et fyldigere innpust.',
             annotations: [
                 { track: 'paw', relX: 0.32, relY: 0.25, title: 'Trykkoversving (Spike)', desc: 'For bratt trykkstigning ved innpuststart' }
@@ -461,12 +444,12 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'For tidlig avslutning',
             badge: '⏱️ Dobbelttrigger',
             mode: 'PS',
-            ipap: 14,
+            ipap: 11,
             epap: 5,
             rr: 14,
             fio2: 30,
-            riseTime: 150,
-            cycling: 85,
+            riseTime: 300,
+            cycling: 60,
             tiSet: 1.0,
             tiMax: 2.0,
             leak: 5,
@@ -486,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cardiac: 0.0,
             height: 175,
             whatYouSee: 'Dobbelttrigging (to maskinstøttede pust rett etter hverandre) eller trykk som dras dypt under EPAP like etter at maskinen avslutter innpustet.',
-            whyItHappens: 'Cycling er satt for høyt (85 % av toppflow). Maskinen avslutter innpustet mens pasientens nevrale innpust (1.2 s) fortsatt pågår, og pasientens fortsatte sug trigger et nytt innpust.',
+            whyItHappens: 'Cycling er satt for høyt (60 % av toppflow). Maskinen avslutter innpustet mens pasientens nevrale innpust (1.2 s) fortsatt pågår, og pasientens fortsatte sug trigger et nytt innpust.',
             whatToDo: 'Senk cycling-prosenten (f.eks. til 20–25 %) eller forleng Ti_max slik at maskinen leverer støtte gjennom hele pasientens innpust.',
             annotations: [
                 { track: 'paw', relX: 0.42, relY: 0.65, title: 'Dobbelttrigging / Dipp', desc: 'Pasienten suger videre etter tidlig cycling' }
@@ -693,7 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // PS-modus (Standard)
             if (modeBadge) {
-                modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV)</span>';
+                modeBadge.innerHTML = '<span>Modus: BPAP</span>';
             }
             if (labelPressureMode) labelPressureMode.textContent = 'IPAP (Inspiratorisk trykk)';
             if (sublabelPressureMode) sublabelPressureMode.textContent = 'Trykkstøtte levert under innpust';
@@ -1017,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const alarmHighVt = sliders.alarmHighVt ? parseInt(sliders.alarmHighVt.value, 10) : 800;
         const alarmLowRr = sliders.alarmLowRr ? parseInt(sliders.alarmLowRr.value, 10) : 0;
         const alarmHighRr = sliders.alarmHighRr ? parseInt(sliders.alarmHighRr.value, 10) : 30;
-        const alarmHighPpeak = sliders.alarmHighPpeak ? parseFloat(sliders.alarmHighPpeak.value) : 5;
+        const alarmHighPpeak = sliders.alarmHighPpeak ? parseFloat(sliders.alarmHighPpeak.value) : 40;
 
         // Oppdater simulatoren
         simulator.settings.mode = selectMode ? selectMode.value : 'PS';
@@ -1042,7 +1025,8 @@ document.addEventListener('DOMContentLoaded', () => {
         simulator.settings.alarmHighVtLimit = alarmHighVt;
         simulator.settings.alarmLowRrLimit = alarmLowRr;
         simulator.settings.alarmHighRrLimit = alarmHighRr;
-        simulator.settings.alarmHighPpeakDelta = alarmHighPpeak;
+        simulator.settings.alarmHighPpeak = alarmHighPpeak;
+        simulator.settings.alarmHighPpeakDelta = alarmHighPpeak - ipap;
 
         if (simulator.settings.triggerMode === 'flow') {
             simulator.settings.triggerFlow = triggerVal;
@@ -1109,7 +1093,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (labelAlarmLowRrVal) labelAlarmLowRrVal.textContent = alarmLowRr === 0 ? `0 /min (Av)` : `${alarmLowRr} /min`;
         if (labelAlarmHighRrVal) labelAlarmHighRrVal.textContent = `${alarmHighRr} /min`;
 
-        if (badges.alarmHighPpeak) badges.alarmHighPpeak.textContent = `+${alarmHighPpeak} cmH₂O`;
+        if (badges.alarmHighPpeak) {
+            badges.alarmHighPpeak.textContent = `${alarmHighPpeak} cmH₂O`;
+        }
 
         if (badges.trigger) {
             if (simulator.settings.triggerMode === 'flow') {
@@ -1119,16 +1105,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Oppdater innstilte visninger i målepanelet (D5)
-        if (dispIpap) dispIpap.textContent = ipap;
-        if (dispEpap) dispEpap.textContent = epap;
-        if (dispFio2) dispFio2.textContent = `${fio2}%`;
-
         updateTriggerSyncUI();
 
         // C4: Oppdater modusetiketten dynamisk når ST-innstillinger endres
         if (simulator.settings.mode === 'PS' && modeBadge) {
-            modeBadge.innerHTML = '<span>Modus: Spontan / Trykkstøtte (PSV)</span>';
+            modeBadge.innerHTML = '<span>Modus: BPAP</span>';
         }
         if (!isScenarioActive) {
             updateInsights();
@@ -1467,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sliders.alarmHighVt) sliders.alarmHighVt.value = 800;
         if (sliders.alarmLowRr) sliders.alarmLowRr.value = 0;
         if (sliders.alarmHighRr) sliders.alarmHighRr.value = 30;
-        if (sliders.alarmHighPpeak) sliders.alarmHighPpeak.value = 5;
+        if (sliders.alarmHighPpeak) sliders.alarmHighPpeak.value = 40;
 
         if (isPaused) {
             isPaused = false;
@@ -1491,7 +1472,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (insightTheoVt) insightTheoVt.textContent = `${insights.theoreticalVt} ml`;
         
         if (insightCycleReason) {
-            if (insights.lastCycleReason === 'tiMax') {
+            if (insights.lastCycleReason === 'pressureLimit') {
+                const setLim = simulator.settings.alarmHighPpeak !== undefined ? simulator.settings.alarmHighPpeak : 40;
+                const effLim = Math.max(simulator.settings.epap + 2, setLim - 10).toFixed(0);
+                insightCycleReason.textContent = `🛑 P-maks (${effLim} cmH₂O)`;
+                insightCycleReason.style.color = '#ef4444';
+            } else if (insights.lastCycleReason === 'tiMax') {
                 insightCycleReason.textContent = `⚠️ Ti-max (${simulator.settings.tiMax.toFixed(1)}s)`;
                 insightCycleReason.style.color = 'var(--color-warning)';
             } else if (insights.lastCycleReason === 'timeSet') {
@@ -1557,41 +1543,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cardMetricRR) cardMetricRR.classList.toggle('metric-alarm-active', hasApnea || hasHighRr || hasLowRr);
 
             // Sekundære måleverdier (D5)
-            if (dispPipPplat) dispPipPplat.textContent = `${m.ppeak.toFixed(1)} / ${m.pplat.toFixed(1)}`;
-            if (dispDeltaPres) dispDeltaPres.innerHTML = `ΔP<sub>res</sub>: ${(Math.max(0, m.ppeak - m.pplat)).toFixed(1)} cmH₂O`;
-
             const peepTot = (simulator.settings.epap + m.peepi).toFixed(1);
             if (dispPeepPeepi) dispPeepPeepi.textContent = `${simulator.settings.epap.toFixed(1)} / ${m.peepi.toFixed(1)}`;
             if (dispPeepTot) dispPeepTot.innerHTML = `PEEP<sub>tot</sub>: ${peepTot} cmH₂O`;
-
-            if (dispVtiVte) dispVtiVte.textContent = `${m.vti} / ${m.vte}`;
-            const leakPerBreath = Math.max(0, m.vti - m.vte);
-            if (dispLeakPerBreath) dispLeakPerBreath.textContent = `ΔV (Lekk): ${leakPerBreath} ml`;
-
-            if (dispVtPerKg) dispVtPerKg.textContent = m.vtPerKg.toFixed(1);
-            if (dispIbwFoot) dispIbwFoot.textContent = `IBW: ${m.ibw} kg (${simulator.patient.height} cm)`;
-
-            // D1: Måleverdiene Ti, Te og I:E vises i begge moduser
-            if (dispTiTe) dispTiTe.textContent = `${m.ti.toFixed(1)} / ${m.te.toFixed(1)}`;
-            if (dispIeRatio) dispIeRatio.textContent = `I:E ${m.ieRatio} (${m.tiTtot}%)`;
-
-            // D2: % Spontane pust
-            if (dispRrSpont) dispRrSpont.innerHTML = `${m.rrSpont} <span class="sub-val-secondary">(${m.spontPercent}%)</span>`;
-            if (dispSpontFoot) dispSpontFoot.textContent = `av ${m.rrTotal} pust/min`;
 
             if (dispLeakSec) dispLeakSec.innerHTML = `${m.leak.toFixed(1)} <span class="sub-val-secondary">(${m.leakPercent.toFixed(0)}%)</span>`;
             if (dispLeakStatus) {
                 dispLeakStatus.textContent = (m.leak > 40 || m.leakPercent > 40) ? '⚠️ Høy lekkasje' : ((m.leak > 15 || m.leakPercent > 20) ? 'Moderat lekkasje' : 'Tett krets');
             }
-
-            if (dispAsynchronyIndex) dispAsynchronyIndex.textContent = `${m.asynchronyIndex} %`;
-            let cycleText = `Flow (${Math.round(simulator.settings.cyclingPercent * 100)}%)`;
-            if (simulator.settings.mode === 'PC') {
-                cycleText = `Tid (Ti = ${simulator.settings.tiSet.toFixed(2)}s)`;
-            } else if (simulator.state.lastCycleReason === 'tiMax') {
-                cycleText = '⚠️ Ti-max';
-            }
-            if (dispCycleReasonFoot) dispCycleReasonFoot.textContent = `Cycling: ${cycleText}`;
 
             updateInsights();
         }

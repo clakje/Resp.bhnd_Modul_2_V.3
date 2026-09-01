@@ -1052,7 +1052,7 @@ class WaveformRenderer {
             return bottomY - ratio * usableH;
         };
 
-        // C7: Tegn maskinmålt volumkurve (V_meas) med min/maks-konvolutt
+        // C7: Tegn maskinmålt volumkurve (V_meas) med min/maks-konvolutt (ingen falske klippeindikatorer)
         this._renderEnvelopeWaveform(
             ctx,
             this.volumeData,
@@ -1061,9 +1061,7 @@ class WaveformRenderer {
             this.colors.volumeFill,
             bottomY,
             leftM,
-            activeW,
-            0,
-            volMax
+            activeW
         );
 
         // Fase 3: Overlegg sant lungevolum (V_lunge) som stiplet kurve hvis aktivert (A7)
@@ -1088,7 +1086,7 @@ class WaveformRenderer {
         const eraseEnd = (sweepX + this.eraseWidth) % activeW;
 
         ctx.save();
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 1.2;
         ctx.strokeStyle = strokeColor;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
@@ -1219,7 +1217,7 @@ class WaveformRenderer {
             // 2. Tegn selve kurvelinjen med min/maks-konvolutt
             ctx.beginPath();
             ctx.strokeStyle = this.colors.flow;
-            ctx.lineWidth = 2.0;
+            ctx.lineWidth = 1.2;
             let drawing = false;
             const clippedPoints = [];
 
@@ -1311,7 +1309,7 @@ class WaveformRenderer {
         const eraseEnd = (sweepX + this.eraseWidth) % activeW;
 
         ctx.save();
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 1.1;
         ctx.strokeStyle = strokeColor;
         ctx.setLineDash([4, 4]);
         ctx.lineJoin = 'round';

@@ -182,7 +182,8 @@ class VentilatorSimulator {
             alarmHighVtLimit: 800,  // ml - grense for høyt tidalvolum (300–1000 ml)
             alarmLowRrLimit: 0,     // /min - grense for lav respirasjonsfrekvens (0–25 /min, 0 = av)
             alarmHighRrLimit: 30,   // /min - grense for høy respirasjonsfrekvens (20–50 /min)
-            alarmHighPpeakDelta: 5  // cmH2O - trykktillegg over IPAP for høyt-trykk-alarm (2–10 cmH2O)
+            alarmHighPpeak: 40,     // cmH2O - innstilt øvre alarmgrense (0–50 cmH2O, effektiv kuttgrense er 10 cmH2O under)
+            alarmHighPpeakDelta: 5  // cmH2O - beholdes for bakoverkompatibilitet
         };
 
         // Pasientfysiologi (A6 & D5)
@@ -748,8 +749,15 @@ class VentilatorSimulator {
                 this._pawInspBuffer.shift();
             }
 
-            // D1 & D2: Cyclinglogikk for PC-modus og PS-modus
-            if (this.settings.mode === 'PC') {
+            // Sikkerhetsgrense / Topptrykksgrense (High Pressure Limit / Sikkerhetsbrems):
+            // Avbryter inspirasjonen umiddelbart hvis luftveistrykket når grensen (effektiv grense er 10 cmH2O under innstilt alarmgrense)
+            const setLimit = this.settings.alarmHighPpeak !== undefined ? this.settings.alarmHighPpeak : 40;
+            const pHighLimit = Math.max(this.settings.epap + 2, setLimit - 10);
+            if (pHighLimit > 0 && this.state.P_aw >= pHighLimit) {
+                this.state.lastCycleReason = 'pressureLimit';
+                this._startExpiration();
+                P_target = this.settings.epap;
+            } else if (this.settings.mode === 'PC') {
                 // PC-MODUS: Ingen flow-cycling — avsluttes utelukkende på tid (tiSet)
                 if (this.state.timeInPhase >= this.settings.tiSet) {
                     this.state.lastCycleReason = 'timeSet';
@@ -820,8 +828,18 @@ class VentilatorSimulator {
         const Q_leak_prev = (this.settings.leak / 60) * Math.sqrt(Math.max(0, this.state.P_aw) / 10);
         const G_leak = (this.settings.leak > 0) ? (Q_leak_prev / Math.max(GRENSER.MIN_PAW_FOR_LEAK, this.state.P_aw)) : 0;
 
-        const num = this.state.P_servo - this.machine.R_out * (this.state.P_mus - P_el) / R_eff;
-        const den = 1 + this.machine.R_out / R_eff + this.machine.R_out * G_leak;
+        // Fysiologisk/pneumatisk ventilregulering under stigetid:
+        // Ved langsom stigetid (f.eks. 800 ms) er inspirasjonsventilen strupet/begrenset.
+        // Når pasienten suger kraftig (Pmus > 0), oppstår flow starvation og et markant trykkfall (trykkdipp / skallopering)
+        // fordi pasienten trekker luft raskere enn maskinens stigetid tillater.
+        const riseFactor = (this.state.phase === 'inspiration')
+            ? Math.max(0, (this.settings.riseTime - 0.15) / 0.75)
+            : 0;
+        const starvationScale = 1.0 + 8.5 * riseFactor * (this.state.P_mus > 0 ? Math.min(1.0, this.state.P_mus / 2.0) : 0);
+        const R_out_eff = this.machine.R_out * starvationScale;
+
+        const num = this.state.P_servo - R_out_eff * (this.state.P_mus - P_el) / R_eff;
+        const den = 1 + R_out_eff / R_eff + R_out_eff * G_leak;
         let P_aw = num / den;
 
         // Steg 4 — Flowbegrensning (kapasitetsgrense på blåser)
@@ -925,13 +943,15 @@ class VentilatorSimulator {
                 msg: `APNÉ: ingen levert pust i ${Math.round(timeSinceLast)} sekunder. Kontroller pasientinnsats, trigger og lekkasje.`
             });
         }
-        if (this.state.measured.ppeak > (this.settings.ipap + this.settings.alarmHighPpeakDelta)) {
+        const setHighLimit = this.settings.alarmHighPpeak !== undefined ? this.settings.alarmHighPpeak : 40;
+        const highPressureLimit = Math.max(this.settings.epap + 2, setHighLimit - 10);
+        if (highPressureLimit > 0 && (this.state.measured.ppeak >= highPressureLimit || this.state.lastCycleReason === 'pressureLimit')) {
             alarms.push({
                 id: 'high_pressure',
                 priority: 2,
                 type: 'warning',
                 title: 'HØYT TOPPTRYKK',
-                msg: `Topptrykk (${this.state.measured.ppeak.toFixed(1)} cmH₂O) overstiger alarmgrensen (${(this.settings.ipap + this.settings.alarmHighPpeakDelta).toFixed(1)} cmH₂O).`
+                msg: `Topptrykk (${this.state.measured.ppeak.toFixed(1)} cmH₂O) nådde sikkerhetsgrensen (${highPressureLimit.toFixed(1)} cmH₂O, 10 cmH₂O under innstilt ${setHighLimit} cmH₂O). Inspirasjonen ble avbrutt som sikkerhetsbrems for å beskytte pasienten.`
             });
         }
         if (this.state.alarmState.lowVtStreak >= 3) {
@@ -1236,8 +1256,12 @@ class VentilatorSimulator {
             rules.push(`💨 <strong>Høy maskelekkasje (${leakVal.toFixed(1)} L/min, ${leakPct.toFixed(0)} %):</strong> Kan forsinke flow-cycling (fare for Ti-max avbrudd), utløse autotrigging og skape feilaktig avlesning av ekspirert tidalvolum.`);
         }
 
-        // Regel 6: Cyclingårsak (lastCycleReason === 'tiMax')
-        if (lastCycleReason === 'tiMax') {
+        // Regel 6: Cyclingårsak (lastCycleReason)
+        if (lastCycleReason === 'pressureLimit') {
+            const setLimit = this.settings.alarmHighPpeak !== undefined ? this.settings.alarmHighPpeak : 40;
+            const pHighLim = Math.max(this.settings.epap + 2, setLimit - 10).toFixed(1);
+            rules.push(`🛑 <strong>Topptrykksgrense nådd (Sikkerhetsbrems):</strong> Luftveistrykket nådde den effektive sikkerhetsgrensen (${pHighLim} cmH₂O, 10 cmH₂O under innstilt ${setLimit} cmH₂O). Inspirasjonen ble avbrutt umiddelbart for å beskytte lungene mot barotraume/skade.`);
+        } else if (lastCycleReason === 'tiMax') {
             rules.push(`⏱️ <strong>Tidsavbrutt inspirasjon (Ti-max = ${this.settings.tiMax.toFixed(1)} s):</strong> Maskinen avsluttet innpustet på maksimal sikkerhetstid fordi flow ikke sank under cycling-grensen (${Math.round(this.settings.cyclingPercent * 100)} %). Typisk ved stor lekkasje eller lang tidskonstant.`);
         }
 

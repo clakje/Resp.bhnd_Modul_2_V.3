@@ -53,7 +53,7 @@ Alle scenarioer i simulatoren er **ekte parametersett** — ingen skriptede kurv
 3. **Autotrigging:** Lekkasje og følsom trigger trigger maskinen uten pasientinnsats (⨂).
 4. **Stigetid for treg:** Langsom trykkstigning (800 ms) gir markant trykkdipp ved kraftig pasientdrive.
 5. **Stigetid for rask:** Aggressiv trykkstigning (50 ms) skaper trykkoversving (spike) og for tidlig avslutning.
-6. **For tidlig avslutning:** Høy cycling (85 %) avslutter før pasienten er ferdig, med fare for dobbelttrigging.
+6. **For tidlig avslutning:** Høy cycling (60 %) avslutter før pasienten er ferdig, med fare for dobbelttrigging.
 7. **For sen avslutning:** Lav cycling (5 %) tvinger pasienten til å puste ut mot maskinen (terminal trykk-spike).
 8. **KOLS med auto-PEEP:** Takypné og luftveismotstand gir ufullstendig tømming og auto-PEEP > 5 cmH₂O.
 9. **Hyperkapnisk KOLS, behandlet:** Optimalisert EPAP (8 cmH₂O) og IPAP (20 cmH₂O) løser auto-PEEP og gjenoppretter trigging.
