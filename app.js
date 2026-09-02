@@ -253,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 15,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Alle pasientinnsatser utløser assisterte pust (▲) med stabilt tidalvolum (~500 ml). Ekspirasjonsflow returnerer uanstrengt til null før neste innpust (Auto-PEEP 0 cmH₂O).',
             whyItHappens: 'Respiratorens trykkstøtte (IPAP 8 / EPAP 5), stigetid, trigger og cycling er optimalt synkronisert med pasientens egen pusterytme (12/min, Ti 1,0 s, Pmus 5 cmH₂O) og lungefysiologi (C 90, R 5).',
             whatToDo: 'Referansebildet for vellykket NIV-behandling. Pasienten er godt ventilert og synkron — fortsett klinisk overvåking.',
@@ -289,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             tolkning: 'Pasienten har normale lunger og normal respiratorisk muskelstyrke. Den lette sedasjonen reduserer respiratorisk drive noe, som gir litt lavere respirasjonsfrekvens og lavere Pmus,insp enn hos en våken person. Ekspirasjonen er passiv uten bukmuskelaktivitet. Pustemønsteret er regelmessig og stabilt.',
             whatYouSee: 'Regelmessig og rolig pustemønster (11/min) med stabilt tidalvolum (~500 ml). Ekspirasjonsflow returnerer fullstendig til null før neste innpust (Auto-PEEP 0 cmH₂O).',
             whyItHappens: 'Den lette sedasjonen reduserer pasientens eget respiratoriske drive (Pmus,insp 3 cmH₂O, 11/min), men trykkstøtten (IPAP 9 / EPAP 5, ΔP 4 cmH₂O) og normal lungefysiologi (C 90, R 5) sikrer harmonisk og fullgod ventilasjon.',
@@ -326,6 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 10,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             tolkning: 'Pasienten har normal lungefysiologi (C 90 mL/cmH₂O, Rinsp 5 cmH₂O/L/s, Rexp 5 cmH₂O/L/s, Auto-PEEP 0 cmH₂O), men lav inspiratorisk muskelinnsats (Pmus,insp 2–3 cmH₂O, Pmus,max kap. 100 cmH₂O) som bare klarer å generere omtrent 3–4 L/min triggerflow. Dette demonstrerer effekten av triggerfølsomhet alene, uten forstyrrende variabler som auto-PEEP eller obstruksjon.',
             whatYouSee: 'Ved Trigger 5,0 L/min: Ingen trigging (0 %) — alle pasientinnsatser blir uassisterte med åpne trekanter (△) og «buler» i ekspirasjonsflowen. Ved Trigger 4,0 L/min: Sporadisk trigging. Ved Trigger 3,0 L/min: 100 % stabil og synkron trigging (▲) med tidalvolum ~450 ml.',
             whyItHappens: 'Respiratorens flow-triggerterskel er innstilt for ufølsomt (5,0 L/min) i forhold til pasientens svake inspiratoriske innsats (~3–4 L/min triggerflow). Pasienten når ikke over terskelen, og innpustene forblir uassisterte inntil triggeren justeres ned.',
@@ -363,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Maskinfrekvensen (RRtot) er langt høyere enn pasientens spontane frekvens. Blandede markører med kryss-trekant (⨂).',
             whyItHappens: 'Kombinasjonen av stor maskelekkasje (40 L/min) og svært følsom trigger (1.0 L/min) gjør at turbulens og flow-svingninger trigger maskinen uten pasientinnsats.',
             whatToDo: 'Juster og stram masken for å eliminere lekkasje, og øk triggerterskelen til f.eks. 2.5–3.0 L/min.',
@@ -398,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Markant «trykkdipp» under EPAP og skallopering (konkav innsvingning) i starten av innpustet. Flowkurven får en bred, kuppelformet profil.',
             whyItHappens: 'Pasienten har høy inspirasjonsdrive (Pmus 8 cmH₂O). Fordi stigetiden er satt for tregt (800 ms), struper maskinen flowleveransen. Pasienten genererer negativt trykk raskere enn maskinen bygger opp positivt trykk, og suger ned masketrykket (flow starvation / skallopering).',
             whatToDo: 'Forkort stigetiden (f.eks. til 100–150 ms) slik at maskinen raskt møter pasientens flow-etterspørsel og avlaster pasientens pustearbeid.',
@@ -433,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Skarp trykk-spike (overshoot) over innstilt IPAP ved innpuststart, etterfulgt av bratt flowforkant, tidlig avslutning og redusert tidalvolum.',
             whyItHappens: 'Blåseren akselererer for brått (75 ms) inn i luftveismotstanden. Trykksjokket gjør at flow faller prematurt til cycling-terskelen.',
             whatToDo: 'Myk opp stigetiden (f.eks. til 150–200 ms) for å unngå trykk-spikes og gi et fyldigere innpust.',
@@ -468,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Dobbelttrigging (to maskinstøttede pust rett etter hverandre) eller trykk som dras dypt under EPAP like etter at maskinen avslutter innpustet.',
             whyItHappens: 'Cycling er satt for høyt (60 % av toppflow). Maskinen avslutter innpustet mens pasientens nevrale innpust (1.2 s) fortsatt pågår, og pasientens fortsatte sug trigger et nytt innpust.',
             whatToDo: 'Senk cycling-prosenten (f.eks. til 20–25 %) eller forleng Ti_max slik at maskinen leverer støtte gjennom hele pasientens innpust.',
@@ -503,6 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Markant trykkstigning (terminal trykk-spike) mot slutten av innpustet. Flow krysser ned mot eller under nullinjen før maskinen slipper ekspirasjonen.',
             whyItHappens: 'Pasienten har avsluttet sitt innpust (0.6 s) og aktiverer utpustmusklene (Pmus_exp 8 cmH₂O), men maskinen fortsetter å presse luft inn fordi cycling-terskelen er satt for lavt (5 %).',
             whatToDo: 'Øk cycling-prosenten (f.eks. til 30–40 %) eller forkort Ti_max slik at maskinen slipper utpustet i takt med pasienten.',
@@ -538,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Ekspirasjonsflow når aldri nullinjen før neste pust starter. PEEPi stiger (> 5 cmH₂O), og det oppstår spontant mislykkede triggere (△). Volumkurven akkumulerer luftfanging.',
             whyItHappens: 'Høy ekspiratorisk motstand (R 18), flowbegrensning og takypné (RR 25) gir utilstrekkelig ekspirasjonstid. Fanget luft skaper et positivt indre mottrykk som må overvinnes før triggerflow kan dannes.',
             whatToDo: 'Øk EPAP for å motvirke luftveiskollaps og «balansere» auto-PEEP, samt senk frekvensen (se neste scenario).',
@@ -574,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'PEEPi faller markant, 100 % av pasientinnsatsene utløser støtte (▲), tidalvolumet øker vesentlig, og pasient-respirator samspillet gjenopprettes.',
             whyItHappens: 'Økt EPAP (8 cmH₂O) holder små luftveier åpne i ekspirasjonen og overvinner auto-PEEP. Høyere IPAP (20 cmH₂O, ΔP 12) leverer adekvat minuttvolum for å lufte ut opphopet CO₂.',
             whatToDo: 'Målet er nådd! Sammenlign med forrige scenario for å se hvordan riktig innstilt EPAP og trykkstøtte løser asynkroni ved KOLS.',
@@ -610,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
             variability: 5,
             cardiac: 0.0,
             height: 175,
+            gender: 'male',
             whatYouSee: 'Maskinen overtar ventilasjonen med faste backup-pust (kvadrat ■). % Spontane pust faller mot 0 %. Ingen apné-alarm utløses.',
             whyItHappens: 'Pasienten har kraftig nedsatt respirasjonsdrive (rrSpont 4, Pmus 1). NIV-ST backup-frekvensen (14 /min) trer inn og sikrer kontinuerlig ventilasjon.',
             whatToDo: 'NIV-ST hindrer hypoksi/asfyksi. Vurder årsaken til redusert drive (opioider/sedasjon/CO₂-narkose) og vurder behov for intubasjon dersom pasienten forblir bevisstløs.',
@@ -944,18 +955,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Kjønnsvalg (D5)
+    function setGender(gender) {
+        currentGender = gender || 'male';
+        if (btnGenderMale && btnGenderFemale) {
+            if (currentGender === 'female') {
+                btnGenderFemale.classList.add('active');
+                btnGenderMale.classList.remove('active');
+            } else {
+                btnGenderMale.classList.add('active');
+                btnGenderFemale.classList.remove('active');
+            }
+        }
+        updateSimulatorFromUI();
+    }
+
     if (btnGenderMale && btnGenderFemale) {
         btnGenderMale.addEventListener('click', () => {
-            currentGender = 'male';
-            btnGenderMale.classList.add('active');
-            btnGenderFemale.classList.remove('active');
-            updateSimulatorFromUI();
+            setGender('male');
         });
         btnGenderFemale.addEventListener('click', () => {
-            currentGender = 'female';
-            btnGenderFemale.classList.add('active');
-            btnGenderMale.classList.remove('active');
-            updateSimulatorFromUI();
+            setGender('female');
         });
     }
 
@@ -973,7 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const deltaP = ipap - epap;
         const tiSet = sliders.tiSet ? parseFloat(sliders.tiSet.value) : 1.0;
         const backupRate = sliders.backupRate ? parseInt(sliders.backupRate.value, 10) : 12;
-        const stActive = false;
+        const stActive = checkStActive ? checkStActive.checked : false;
         const rr = parseInt(sliders.rr.value, 10);
         const fio2 = parseInt(sliders.fio2.value, 10);
         const compliance = parseFloat(sliders.compliance.value);
@@ -1008,7 +1027,7 @@ document.addEventListener('DOMContentLoaded', () => {
         simulator.settings.epap = epap;
         simulator.settings.tiSet = tiSet;
         simulator.settings.backupRate = backupRate;
-        simulator.settings.stActive = false;
+        simulator.settings.stActive = stActive;
         simulator.settings.rr = rr;
         simulator.settings.fio2 = fio2;
         simulator.settings.riseTime = riseTime;
@@ -1251,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sliders.epap) sliders.epap.value = scen.epap;
         if (sliders.tiSet) sliders.tiSet.value = scen.tiSet;
         if (sliders.backupRate) sliders.backupRate.value = scen.backupRate;
-        if (checkStActive) checkStActive.checked = false;
+        if (checkStActive) checkStActive.checked = !!scen.stActive;
         if (sliders.rr) sliders.rr.value = scen.rr;
         if (sliders.fio2) sliders.fio2.value = scen.fio2;
         if (sliders.riseTime) sliders.riseTime.value = scen.riseTime;
@@ -1269,6 +1288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sliders.variability) sliders.variability.value = scen.variability;
         if (sliders.cardiacArtifact) sliders.cardiacArtifact.value = scen.cardiac;
         if (sliders.height) sliders.height.value = scen.height;
+        setGender(scen.gender || 'male');
 
         // Sett triggermodus og triggerverdi
         setTriggerMode(scen.triggerMode || 'flow');
@@ -1304,6 +1324,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }
+
+        // Utviklingssjekk: fang scenarioverdier som ikke treffer slidernes step.
+        // Nettleseren runder dem stille, og simulatoren kjører da med en annen
+        // verdi enn scenariet er definert med.
+        const STEG_SJEKK = {
+            ipap: 'ipap', epap: 'epap', rr: 'rr', riseTime: 'riseTime',
+            cycling: 'cycling', tiMax: 'tiMax', tiSet: 'tiSet', leak: 'leak',
+            backupRate: 'backupRate', compliance: 'compliance', resistance: 'resistance',
+            expRatio: 'expRatio', flowLimitation: 'flowLimitation', rrSpont: 'rrSpont',
+            pmus: 'pmus', tiNeural: 'tiNeural', pmusExp: 'pmusExp',
+            variability: 'variability', height: 'height',
+            cardiac: 'cardiacArtifact', triggerVal: 'trigger'
+        };
+        Object.entries(STEG_SJEKK).forEach(([scenKey, sliderKey]) => {
+            const el = sliders[sliderKey];
+            if (!el || scen[scenKey] === undefined) return;
+            if (parseFloat(el.value) !== parseFloat(scen[scenKey])) {
+                console.warn(
+                    `[Scenario "${scenarioKey}"] ${scenKey}: definert ${scen[scenKey]}, ` +
+                    `slideren ble ${el.value} (min ${el.min}, max ${el.max}, step ${el.step})`
+                );
+            }
+        });
 
         updateSimulatorFromUI();
     }

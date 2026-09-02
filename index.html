@@ -450,6 +450,27 @@
                             </div>
                         </div>
 
+                        <!-- Ti-max (maksimal innpustetid) -->
+                        <div class="control-card" id="cardTiMax">
+                            <div class="control-header">
+                                <div>
+                                    <div class="control-label">Ti-max (maksimal innpustetid)</div>
+                                    <div class="control-sublabel">Sikkerhetsgrense når flow ikke faller under avslutningsterskelen</div>
+                                </div>
+                                <span class="control-value-pill" id="badgeTiMax">2.0 s</span>
+                            </div>
+                            <div class="slider-wrapper">
+                                <button class="step-btn" data-target="sliderTiMax" data-step="-0.1">-</button>
+                                <input type="range" id="sliderTiMax" min="0.8" max="3.0" step="0.1" value="2.0">
+                                <button class="step-btn" data-target="sliderTiMax" data-step="0.1">+</button>
+                            </div>
+                            <div class="slider-limits">
+                                <span>0.8 s (Kort)</span>
+                                <span style="color: var(--color-accent);">Gjelder i PS-modus</span>
+                                <span>3.0 s (Lang)</span>
+                            </div>
+                        </div>
+
                         <!-- Stigetid / Rise Time -->
                         <div class="control-card">
                             <div class="control-header">
@@ -468,6 +489,27 @@
                                 <span>50 ms (Bratt/rask)</span>
                                 <span class="clinical-limit-marker" style="color: var(--color-warning); font-weight: 600;" title="Klinisk standard øvre grense (400 ms)">| 400 ms (Klinisk maks)</span>
                                 <span>900 ms (Svært myk/treg)</span>
+                            </div>
+                        </div>
+
+                        <!-- Maskelekkasje -->
+                        <div class="control-card" id="cardLeak">
+                            <div class="control-header">
+                                <div>
+                                    <div class="control-label">Maskelekkasje</div>
+                                    <div class="control-sublabel">Lekkasjeflow ved 10 cmH₂O</div>
+                                </div>
+                                <span class="control-value-pill" id="badgeLeak">0 L/min</span>
+                            </div>
+                            <div class="slider-wrapper">
+                                <button class="step-btn" data-target="sliderLeak" data-step="-5">-</button>
+                                <input type="range" id="sliderLeak" min="0" max="60" step="5" value="0">
+                                <button class="step-btn" data-target="sliderLeak" data-step="5">+</button>
+                            </div>
+                            <div class="slider-limits">
+                                <span>0 L/min (Ingen)</span>
+                                <span>30 L/min</span>
+                                <span>60 L/min (Høy)</span>
                             </div>
                         </div>
 
