@@ -131,11 +131,29 @@ class PatientDrive {
         } else if (tn < tiN) {
             // Hold kraften ut den nevrale inspirasjonstiden
             pmus = pMax;
-        } else if (tn < tiN + 0.35) {
-            // Eventuell aktiv ekspirasjon / kamp mot maskinen (A3, A6)
-            pmus = -pExp * Math.sin(Math.PI * (tn - tiN) / 0.35);
         } else {
-            pmus = 0.0;
+            // Eksponentiell muskelrelaksasjon (tau ~0.25 s). Erstatter et sprang
+            // fra full kraft til null, som forplantet seg som en kunstig
+            // trykkspike i P_aw på hvert pust.
+            const relax = pMax * Math.exp(-(tn - tiN) / 0.25);
+
+            // Aktiv ekspirasjon varer gjennom hele den nevrale ekspirasjonen,
+            // ikke bare 0.35 s. Med det gamle faste vinduet var pasientens
+            // utpustinnsats over lenge før maskinen slapp innpustet ved sen
+            // avslutning, så «kamp mot maskinen» kunne ikke oppstå.
+            let expPart = 0.0;
+            if (pExp > 0) {
+                const teN = Math.max(0.3, this.currentCycleDuration - tiN);
+                const dtn = tn - tiN;
+                if (dtn < teN) {
+                    expPart = -pExp
+                        * Math.min(1.0, dtn / 0.15)        // rampe opp
+                        * Math.min(1.0, (teN - dtn) / 0.20); // slipp mot slutten
+                }
+            }
+
+            pmus = relax + expPart;
+            if (Math.abs(pmus) < 0.01) pmus = 0.0;
         }
 
         this.P_mus = pmus;
@@ -147,7 +165,8 @@ class VentilatorSimulator {
     constructor() {
         // Maskinkonstanter for blåser og ventilasjonskrets (A2, A6)
         this.machine = {
-            R_out: 1.0,   // cmH2O/(L/s) - Blåserens og slangens utgangsimpedans
+            R_out: 2.2,   // cmH2O/(L/s) - laminært ledd i krets + maske
+            K_out: 1.6,   // cmH2O/(L/s)^2 - turbulent (Rohrer) ledd
             R_valve: 2.0, // cmH2O/(L/s) - Ekspirasjonsventilens motstand i NIV-kretsen (A6)
             Qmax: 3.0     // L/s (~180 L/min) - Maksimal flowkapasitet for NIV-blåser
         };
@@ -226,6 +245,7 @@ class VentilatorSimulator {
             P_target: this.settings.epap, // cmH2O - Måltrykk fra maskinen
             P_servo: this.settings.epap,  // cmH2O - Andreordens servoregulator
             dP_servo: 0.0,                // cmH2O/s - Derivert av P_servo
+            I_servo: 0.0,                 // cmH2O - lastkompensasjon i trykkregulatoren
             P_aw: this.settings.epap,     // cmH2O - Masketrykk
             P_mus: 0.0,                   // cmH2O - Pasientens muskelinnsats
             P_el: this.settings.epap,     // cmH2O - Elastisk lunge-tilbakefjæring (V / C_L)
@@ -409,6 +429,7 @@ class VentilatorSimulator {
         this.state.P_target = this.settings.epap;
         this.state.P_servo = this.settings.epap;
         this.state.dP_servo = 0.0;
+        this.state.I_servo = 0.0;
         this.state.P_aw = this.settings.epap;
         this.state.P_mus = 0.0;
         this.state.P_el = this.settings.epap;
@@ -695,13 +716,12 @@ class VentilatorSimulator {
                         if (isNeural) {
                             // Dobbeltrigger: ny trigging hvis pasientens pågående innsats allerede har utløst pust i denne syklusen eller innen 0.50s etter forrige cycling
                             const isSecondaryInEffort = !!(this.patientDrive.currentEffort && this.patientDrive.currentEffort.detected);
-                            if (this.state.breathCount > 0 && (isSecondaryInEffort || this.state.timeInPhase < 0.50)) {
+                            if (this.state.breathCount > 0 && isSecondaryInEffort) {
+                                // Samme nevrale innsats har alt utløst et pust — dette er
+                                // en ekte dobbelttrigger. Ingen ny innsatspost pushes;
+                                // den eksisterende merkes 'double' nedenfor, slik at
+                                // hendelsen telles én gang.
                                 triggerType = 'double';
-                                this.state.efforts.push({
-                                    t: this.state.totalTime,
-                                    detected: true,
-                                    type: 'double'
-                                });
                             } else {
                                 triggerType = 'assist';
                             }
@@ -812,6 +832,18 @@ class VentilatorSimulator {
         this.state.dP_servo += accel * dt;
         this.state.P_servo  += this.state.dP_servo * dt;
 
+        // Lastkompensasjon. Blåseren måler masketrykket og hever utgangstrykket
+        // til referansebanen P_servo nås. Integratoren ser BARE avviket mot
+        // referansebanen, ikke selve stigetidsrampen — ellers vinder den opp ved
+        // lang stigetid. (Testet: integrator på P_target gav P_aw 32,8 cmH2O ved
+        // innstilt 18.) Ki er lav nok til at den tidlige inspiratoriske
+        // innsynkningen bevares, høy nok til at platået treffer innstilt trykk
+        // også ved stor lekkasje.
+        const Ki = 5.0; // 1/s
+        const errLoad = this.state.P_servo - this.state.P_aw;
+        this.state.I_servo = clamp((this.state.I_servo || 0) + Ki * errLoad * dt, 0, 20);
+        const P_out = this.state.P_servo + this.state.I_servo;
+
         // Steg 3 — Masketrykket P_aw, løst algebraisk med A6 & A7
         const P_el = this.state.V / C_L;
         this.state.P_el = P_el;
@@ -828,17 +860,14 @@ class VentilatorSimulator {
         const Q_leak_prev = (this.settings.leak / 60) * Math.sqrt(Math.max(0, this.state.P_aw) / 10);
         const G_leak = (this.settings.leak > 0) ? (Q_leak_prev / Math.max(GRENSER.MIN_PAW_FOR_LEAK, this.state.P_aw)) : 0;
 
-        // Fysiologisk/pneumatisk ventilregulering under stigetid:
-        // Ved langsom stigetid (f.eks. 800 ms) er inspirasjonsventilen strupet/begrenset.
-        // Når pasienten suger kraftig (Pmus > 0), oppstår flow starvation og et markant trykkfall (trykkdipp / skallopering)
-        // fordi pasienten trekker luft raskere enn maskinens stigetid tillater.
-        const riseFactor = (this.state.phase === 'inspiration')
-            ? Math.max(0, (this.settings.riseTime - 0.15) / 0.75)
-            : 0;
-        const starvationScale = 1.0 + 8.5 * riseFactor * (this.state.P_mus > 0 ? Math.min(1.0, this.state.P_mus / 2.0) : 0);
-        const R_out_eff = this.machine.R_out * starvationScale;
+        // Kretsimpedans etter Rohrer: laminært pluss turbulent ledd.
+        // Trykkfallet mot masken er R_out_eff * flow. Det er dette fallet som
+        // gir flow starvation og skallopering når pasientens etterspørsel
+        // overgår leveransen — fenomenet faller ut av fysikken selv og trenger
+        // ingen egen stigetidsavhengig faktor.
+        const R_out_eff = this.machine.R_out + this.machine.K_out * Math.abs(this.state.Q_total);
 
-        const num = this.state.P_servo - R_out_eff * (this.state.P_mus - P_el) / R_eff;
+        const num = P_out - R_out_eff * (this.state.P_mus - P_el) / R_eff;
         const den = 1 + R_out_eff / R_eff + R_out_eff * G_leak;
         let P_aw = num / den;
 
@@ -890,7 +919,7 @@ class VentilatorSimulator {
         // Oppdater monitor- og kompatibilitetsfelter
         this.state.paw = P_aw;
         this.state.pmus = this.state.P_mus;
-        this.state.flow = (this.state.Q_meas + (this.state.phase === 'expiration' ? Q_cardiac : 0)) * 60; // L/min (maskinmålt kurve)
+        this.state.flow = this.state.Q_meas * 60; // L/min (Q_cardiac ligger allerede i Q_meas)
         this.state.flow_lung = (Q_lunge + (this.state.phase === 'expiration' ? Q_cardiac : 0)) * 60;      // L/min (sann lungekurve)
         this.state.volume = this.state.volume_meas; // ml (maskinmålt volumkurve i monitoren)
 
