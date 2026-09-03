@@ -266,6 +266,7 @@ class VentilatorSimulator {
             PEEPi: 0.0,                   // cmH2O - Iboende PEEP (auto-PEEP, A1, A6)
 
             // A4, A5 & C5: Trigger, Cycling og Trykktopper
+            peakTriggerFlow: 0.0,         // L/s - største Q_meas under ekspirasjon før trigging
             peakQmeas: 0.0,               // L/s - Toppflow av Q_meas i pågående innpust
             pawMaxInBreath: this.settings.epap, // cmH2O - Maksimalt trykk i innpustet (C5 PIP)
             lastPip: this.settings.ipap,  // cmH2O - Siste fullførte innpusts PIP (C5)
@@ -448,6 +449,7 @@ class VentilatorSimulator {
         this.state.V_endExp = this.state.V;
         this.state.PEEPi = 0.0;
 
+        this.state.peakTriggerFlow = 0.0;
         this.state.peakQmeas = 0.0;
         this.state.pawMaxInBreath = this.settings.epap;
         this.state.lastPip = this.settings.ipap;
@@ -629,6 +631,11 @@ class VentilatorSimulator {
         // Kardiogent artefakt (flowoscillasjon fra hjerteslag ved ca 75 bpm / 1.25 Hz)
         const Q_cardiac = (this.patientDrive.cardiacArtifact / 60) * Math.sin(2 * Math.PI * 1.25 * this.state.totalTime);
 
+        // Pneumatisk flow-turbulens ved maskelekkasje (skaper realistisk autotrigging ved stor lekkasje + sensitiv trigger)
+        const Q_leak_turb = (this.settings.leak > 0)
+            ? (this.settings.leak / 60) * 0.035 * (Math.sin(17.3 * this.state.totalTime) + Math.cos(29.7 * this.state.totalTime))
+            : 0.0;
+
         // 2. Apné-overvåking (C3, D2): spor tid siden forrige levert pust
         const timeSinceLast = this.state.totalTime - this.state.lastSuccessfulBreathTime;
         this.state.timeSinceLastBreath = timeSinceLast;
@@ -651,14 +658,14 @@ class VentilatorSimulator {
                 this.state.Q_leak_estimert += (epapLeakTarget - this.state.Q_leak_estimert) * (dt / 4.0);
             }
 
-            // Pneumatisk flow-turbulens ved maskelekkasje (skaper realistisk autotrigging ved stor lekkasje + sensitiv trigger)
-            const Q_leak_turb = (this.settings.leak > 0)
-                ? (this.settings.leak / 60) * 0.035 * (Math.sin(17.3 * this.state.totalTime) + Math.cos(29.7 * this.state.totalTime))
-                : 0.0;
-
             // Målt flow tilgjengelig for trigging (A4, A7)
             const Q_meas = this.state.Q_total - this.state.Q_leak_estimert + Q_cardiac + Q_leak_turb;
             this.state.Q_meas = Q_meas;
+
+            // Spor topp-flow pasienten skaper mot triggerterskelen etter refraktærtiden (0.15 s)
+            if (this.state.timeInPhase >= 0.15 && Q_meas > this.state.peakTriggerFlow) {
+                this.state.peakTriggerFlow = Q_meas;
+            }
 
             // D1 & D2: Sjekk maskinutløst pust (PC-modus kontrollfrekvens eller ST-backup frekvens)
             let isMachineTrigger = false;
@@ -893,7 +900,7 @@ class VentilatorSimulator {
 
         // Oppdater Q_meas også i pågående steg
         if (this.state.phase === 'expiration') {
-            this.state.Q_meas = Q_total - this.state.Q_leak_estimert + Q_cardiac;
+            this.state.Q_meas = Q_total - this.state.Q_leak_estimert + Q_cardiac + Q_leak_turb;
         } else {
             this.state.Q_meas = Q_total - this.state.Q_leak_estimert;
         }
@@ -1157,6 +1164,7 @@ class VentilatorSimulator {
 
     _startExpiration() {
         this.state.phase = 'expiration';
+        this.state.peakTriggerFlow = 0.0;
         const ti = this.state.timeInPhase;
         this.state.lastTi = ti;
         this.state.timeInPhase = 0;
@@ -1228,14 +1236,19 @@ class VentilatorSimulator {
         const tauInsp = (C * R_insp) / 1000; // Inspiratorisk tidskonstant: Tau = C * R
         const tauExp = (C * R_exp) / 1000;   // Ekspiratorisk tidskonstant
         const drivingPressure = this.settings.ipap - this.settings.epap;
-        const theoreticalVt = Math.round(C * drivingPressure);
+        const peepi = this.state.PEEPi || 0;
+        // Maskinens bidrag alene, ved fullstendig fylling og passiv pasient
+        const machineVt = Math.round(C * Math.max(0, drivingPressure - peepi));
+        // Pasientens eget bidrag ved gjeldende muskelkraft
+        const patientVt = Math.round(C * this.patientDrive.pmusMax);
+        const theoreticalVt = machineVt + patientVt;
         const timeFor95Expiration = (3 * tauExp).toFixed(2); // 3 * Tau gir 95% tømming
 
         const triggerFlow = this.settings.triggerFlow;
-        const pmus = this.patientDrive.pmusMax;
-        const patientGeneratedFlow = parseFloat(((pmus / R_insp) * 60).toFixed(1));
+        // Faktisk målt topp-flow pasienten klarer å skape før trigging.
+        // Denne er compliance- og rampebegrenset, ikke Pmus/R.
+        const patientGeneratedFlow = parseFloat((this.state.peakTriggerFlow * 60).toFixed(1));
         const lastCycleReason = this.state.lastCycleReason;
-        const peepi = this.state.PEEPi || 0;
 
         const rules = [];
 
@@ -1267,7 +1280,9 @@ class VentilatorSimulator {
             let causeText = 'Manglende samspill mellom pasient og maskin.';
             if (missedCount >= autoCount && missedCount >= doubleCount && missedCount > 0) {
                 domType = 'Mislykkede triggere (Missed efforts)';
-                causeText = peepi > 1.5 ? 'Skyldes primært auto-PEEP som pasienten ikke overvinner.' : 'Skyldes for høy triggerterskel eller svak pasientkraft.';
+                causeText = peepi > 1.5
+                    ? 'Skyldes primært auto-PEEP som pasienten ikke overvinner.'
+                    : `Skyldes at pasientens innsats (målt topp-flow ${patientGeneratedFlow} L/min) ikke overstiger triggerterskelen (${triggerFlow} L/min). Flowen en innsats kan skape avhenger av både muskelkraft og lungenes ettergivelighet.`;
             } else if (autoCount >= missedCount && autoCount >= doubleCount && autoCount > 0) {
                 domType = 'Autotrigging';
                 causeText = 'Skyldes for sensitiv trigger, maskelekkasje eller kardiogene oscillasjoner.';
@@ -1321,6 +1336,8 @@ class VentilatorSimulator {
             tauInsp: tauInsp.toFixed(2),
             tauExp: tauExp.toFixed(2),
             theoreticalVt,
+            machineVt,
+            patientVt,
             timeFor95Expiration,
             drivingPressure,
             triggerFlow,

@@ -1512,7 +1512,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const insights = simulator.getPhysiologicalInsights();
         if (insightTau) insightTau.textContent = `${insights.tau} s`;
         if (insightDeltaP) insightDeltaP.textContent = `${insights.drivingPressure} cmH₂O`;
-        if (insightTheoVt) insightTheoVt.textContent = `${insights.theoreticalVt} ml`;
+        if (insightTheoVt) {
+            insightTheoVt.textContent = `${insights.theoreticalVt} ml`;
+            const parent = insightTheoVt.parentElement;
+            if (parent) {
+                if (!parent.dataset.labeled) {
+                    parent.dataset.labeled = 'true';
+                    for (const node of parent.childNodes) {
+                        if (node.nodeType === Node.TEXT_NODE && node.textContent.includes('Teoretisk')) {
+                            node.textContent = node.textContent.replace('Teoretisk', 'Forventet');
+                        }
+                    }
+                    const sub = parent.querySelector('sub');
+                    if (sub && sub.nextSibling && sub.nextSibling.nodeType === Node.TEXT_NODE) {
+                        sub.nextSibling.textContent = ' (maskin + pasient): ';
+                    }
+                }
+                const titleText = `Forventet Vt (maskin + pasient):\n• Maskin: ${insights.machineVt} ml\n• Pasient: ${insights.patientVt} ml`;
+                parent.title = titleText;
+                insightTheoVt.title = titleText;
+
+                let subtext = parent.querySelector('.insight-breakdown');
+                if (!subtext) {
+                    subtext = document.createElement('span');
+                    subtext.className = 'insight-breakdown';
+                    subtext.style.marginLeft = '5px';
+                    subtext.style.fontSize = '0.85em';
+                    subtext.style.opacity = '0.85';
+                    parent.appendChild(subtext);
+                }
+                subtext.textContent = `(maskin ${insights.machineVt} + pasient ${insights.patientVt} ml)`;
+            }
+        }
         
         if (insightCycleReason) {
             if (insights.lastCycleReason === 'pressureLimit') {
