@@ -701,11 +701,29 @@ class WaveformRenderer {
         ctx.save();
 
         this.annotations.forEach(ann => {
+            const trackId = ann.track || 'paw';
+            if (trackId === 'pes' && !this.showPesTrack) {
+                // Hvis en annotasjon peker på 'pes' og sporet ikke er synlig, hopp over den
+                return;
+            }
+
+            const validTracks = ['paw', 'flow', 'vol', 'pes'];
+            let matchedTrack = tracks.find(t => t.id === trackId);
+            if (!validTracks.includes(trackId)) {
+                console.warn(`[Renderer] Ukjent track "${trackId}" for annotasjon "${ann.title || ''}". Faller tilbake til 'paw'.`);
+                matchedTrack = tracks.find(t => t.id === 'paw') || tracks[0];
+            } else if (!matchedTrack) {
+                matchedTrack = tracks.find(t => t.id === 'paw') || tracks[0];
+            }
+
+            const track = matchedTrack;
+            if (!track) return;
+
             const relX = (ann.relX !== undefined) ? ann.relX : 0.5;
             const targetX = leftM + Math.round(relX * activeW);
-            const track = tracks.find(t => t.id === ann.track) || tracks[0];
+            const relY = (ann.relY !== undefined) ? ann.relY : 0.45;
+            const targetY = track.top + relY * track.height;
 
-            const targetY = track.top + track.height * (ann.relY || 0.45);
             const calloutX = (ann.boxX !== undefined) ? (leftM + ann.boxX * activeW) : Math.min(leftM + activeW - 140, targetX + 25);
             const calloutY = (ann.boxY !== undefined) ? (track.top + ann.boxY * track.height) : Math.max(track.top + 10, targetY - 35);
 
