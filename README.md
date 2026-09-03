@@ -83,3 +83,14 @@ Simulatoren er bygget i ren Vanilla HTML5, CSS3 og JavaScript uten eksterne avhe
    python -m http.server 8080
    ```
 3. Naviger til `http://localhost:8080`.
+
+---
+
+## Tester
+
+    node test_validering.js    # fysikkmotoren (E1–E18)
+    node test_scenarier.js     # scenariene som pedagogisk kontrakt
+
+Begge må passere før endringer i `simulator.js` eller i `SCENARIOS` merges.
+Scenariotestene leser `SCENARIOS` direkte fra `app.js` og slidergrensene
+direkte fra `index.html`, så de følger endringer der automatisk.
