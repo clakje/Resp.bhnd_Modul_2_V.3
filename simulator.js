@@ -267,6 +267,7 @@ class VentilatorSimulator {
 
             // A4, A5 & C5: Trigger, Cycling og Trykktopper
             peakTriggerFlow: 0.0,         // L/s - største Q_meas under ekspirasjon før trigging
+            visPeakTriggerFlow: 0.0,      // L/s - toppholdt triggerflow for visning
             peakQmeas: 0.0,               // L/s - Toppflow av Q_meas i pågående innpust
             pawMaxInBreath: this.settings.epap, // cmH2O - Maksimalt trykk i innpustet (C5 PIP)
             lastPip: this.settings.ipap,  // cmH2O - Siste fullførte innpusts PIP (C5)
@@ -450,6 +451,7 @@ class VentilatorSimulator {
         this.state.PEEPi = 0.0;
 
         this.state.peakTriggerFlow = 0.0;
+        this.state.visPeakTriggerFlow = 0.0;
         this.state.peakQmeas = 0.0;
         this.state.pawMaxInBreath = this.settings.epap;
         this.state.lastPip = this.settings.ipap;
@@ -822,6 +824,16 @@ class VentilatorSimulator {
                     }
                 }
             }
+        }
+
+        // Toppholding for visning: løftes av nye topper, henfaller langsomt.
+        // Uten dette nullstilles verdien ved hvert pust og innsiktsboksen viser 0
+        // mesteparten av tiden — og aldri noe i det hele tatt for en pasient
+        // hvis innsatser ikke fanges.
+        if (this.state.peakTriggerFlow > this.state.visPeakTriggerFlow) {
+            this.state.visPeakTriggerFlow = this.state.peakTriggerFlow;
+        } else {
+            this.state.visPeakTriggerFlow *= Math.exp(-dt / 15.0);
         }
 
         // =========================================================================
@@ -1247,7 +1259,7 @@ class VentilatorSimulator {
         const triggerFlow = this.settings.triggerFlow;
         // Faktisk målt topp-flow pasienten klarer å skape før trigging.
         // Denne er compliance- og rampebegrenset, ikke Pmus/R.
-        const patientGeneratedFlow = parseFloat((this.state.peakTriggerFlow * 60).toFixed(1));
+        const patientGeneratedFlow = parseFloat((this.state.visPeakTriggerFlow * 60).toFixed(1));
         const lastCycleReason = this.state.lastCycleReason;
 
         const rules = [];

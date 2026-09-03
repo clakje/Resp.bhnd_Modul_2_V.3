@@ -848,13 +848,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const rrSpont = simulator.patientDrive.rrSpont;
         const peepi = simulator.state.PEEPi || 0;
         const effectiveDrivingForce = Math.max(0, pmus - peepi);
-        const patientPeakFlow = parseFloat(((effectiveDrivingForce / R) * 60).toFixed(1));
+        const patientPeakFlow = isFlowMode
+            ? parseFloat((simulator.state.visPeakTriggerFlow * 60).toFixed(1))
+            : parseFloat(((effectiveDrivingForce / R) * 60).toFixed(1));
         const cardiac = simulator.patientDrive.cardiacArtifact;
         const isStActive = simulator.settings.stActive && simulator.settings.backupRate > 0;
 
+        const syncPatientLabel = syncPatientEffort ? syncPatientEffort.previousElementSibling : null;
+
         if (isFlowMode) {
+            if (syncPatientLabel && syncPatientLabel.classList.contains('sync-label')) {
+                syncPatientLabel.textContent = 'Pasientens topp-innsats (målt):';
+                syncPatientLabel.title = 'Toppholdt måling over de siste sekundene, ikke en øyeblikksverdi';
+            }
             if (syncTriggerReq) syncTriggerReq.textContent = `${trigFlow.toFixed(1)} L/min`;
-            if (syncPatientEffort) syncPatientEffort.textContent = `${patientPeakFlow.toFixed(1)} L/min`;
+            if (syncPatientEffort) {
+                syncPatientEffort.textContent = `${patientPeakFlow.toFixed(1)} L/min`;
+                syncPatientEffort.title = 'Toppholdt måling over de siste sekundene, ikke en øyeblikksverdi';
+            }
 
             const maxVal = 6.0;
             const threshPct = Math.min(95, Math.max(5, (trigFlow / maxVal) * 100));
@@ -948,8 +959,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // Trykkmodus
+            if (syncPatientLabel && syncPatientLabel.classList.contains('sync-label')) {
+                syncPatientLabel.textContent = 'Pasientinnsats:';
+                syncPatientLabel.removeAttribute('title');
+            }
             if (syncTriggerReq) syncTriggerReq.textContent = `-${trigPress.toFixed(1)} cmH₂O`;
-            if (syncPatientEffort) syncPatientEffort.textContent = `Pmus ${pmus.toFixed(1)}`;
+            if (syncPatientEffort) {
+                syncPatientEffort.textContent = `Pmus ${pmus.toFixed(1)}`;
+                syncPatientEffort.removeAttribute('title');
+            }
             if (triggerSyncBox) triggerSyncBox.className = 'trigger-sync-box';
             if (triggerGaugeFill) triggerGaugeFill.className = 'trigger-gauge-fill';
             if (triggerSyncBadge) {
