@@ -71,6 +71,18 @@
                             <span class="btn-pill active" id="btnScaleAuto" title="Automatisk skalering med faste minimumsgrenser (Gul min 15 cmH₂O, Grønn min ±30 L/min, Blå min 200 ml)" style="cursor: default;">🔄 Auto</span>
                         </div>
                     </div>
+
+                    <div class="toolbar-group">
+                        <span class="toolbar-label">Kurver:</span>
+                        <label class="toolbar-checkbox-label" title="Vis pasientens sanne lungeflow og lungevolum som stiplede referansekurver over maskinens målinger">
+                            <input type="checkbox" id="checkShowTrueCurves">
+                            <span>Sanne kurver</span>
+                        </label>
+                        <label class="toolbar-checkbox-label" title="Vis 4. spor med pasientens muskelinnsats / øsofagustrykk (P_es)">
+                            <input type="checkbox" id="checkShowPes">
+                            <span>Vis P<sub>es</sub> / muskelinnsats (4. spor)</span>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Canvas med de 3 kurvene (Paw, Flow, Volum) -->

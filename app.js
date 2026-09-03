@@ -735,6 +735,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // FASE 4: Avkrysningsboks for 4. spor (P_es / muskelinnsats)
+    const checkShowPes = document.getElementById('checkShowPes');
+    if (checkShowPes) {
+        checkShowPes.addEventListener('change', () => {
+            renderer.showPesTrack = checkShowPes.checked;
+            renderer.resize();   // sporlayouten må regnes om
+        });
+    }
+
     // Trigger-modus veksling (Flow / Trykk)
     function setTriggerMode(mode) {
         simulator.settings.triggerMode = mode;

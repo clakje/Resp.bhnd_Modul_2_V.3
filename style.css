@@ -309,6 +309,39 @@ body {
     letter-spacing: 0.5px;
 }
 
+.toolbar-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-main);
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.toolbar-checkbox-label:hover {
+    background: var(--bg-subtle);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.toolbar-checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+    width: 13px;
+    height: 13px;
+    accent-color: #d946ef;
+    margin: 0;
+}
+
+.toolbar-checkbox-label input#checkShowTrueCurves[type="checkbox"] {
+    accent-color: var(--color-flow);
+}
+
 .btn-group-pill {
     display: inline-flex;
     background: var(--bg-dark);

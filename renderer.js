@@ -44,6 +44,9 @@ class WaveformRenderer {
             volumeFill: 'rgba(6, 182, 212, 0.10)',
             volumeLung: 'rgba(165, 243, 252, 0.90)', // Lys cyan stiplet (Sant V_lunge, A7)
             
+            pes: '#d946ef',            // Magenta - muskelinnsats / oesofagustrykk
+            pesFill: 'rgba(217, 70, 239, 0.12)',
+            
             zeroLine: 'rgba(255, 255, 255, 0.65)',   // Knivskarp 0-linje
             peepLine: 'rgba(251, 191, 36, 0.35)',   // PEEP/EPAP referanselinje
             clipIndicator: '#f43f5e',                // Rødrosa klippeindikator ved akselås (C9)
@@ -72,21 +75,24 @@ class WaveformRenderer {
         this.showAnnotations = false;
         this.annotations = [];
 
-        // C9: Akseskalering (Auto-skalering med faste minimumsgrenser: Paw min 15, Flow min 30, Vol min 200)
+        // C9: Akseskalering (Auto-skalering med faste minimumsgrenser: Paw min 15, Flow min 30, Vol min 200, Pes min 10)
         this.autoScale = {
             paw: true,
             flow: true,
-            vol: true
+            vol: true,
+            pes: true
         };
 
-        // Faste kliniske minimumsskalaer (C9)
+        // Faste kliniske minimumsskalaer (C9 & FASE 4)
         this.fixedScales = {
             pawMin: 0,
             pawMax: 15,
             flowMin: -30,
             flowMax: 30,
             volMin: 0,
-            volMax: 200
+            volMax: 200,
+            pesMin: -10,
+            pesMax: 10
         };
 
         // Dynamiske skalaer (Starter på minimumsverdiene)
@@ -94,21 +100,25 @@ class WaveformRenderer {
             pawMax: 15,
             volMax: 200,
             flowMax: 30,
-            flowMin: -30
+            flowMin: -30,
+            pesMax: 10,
+            pesMin: -10
         };
 
-        // Standard kliniske skalanivåer for dynamisk tilpasning (begrenset av minimumsverdier: Gul min 15, Grønn min 30, Blå min 200)
+        // Standard kliniske skalanivåer for dynamisk tilpasning (begrenset av minimumsverdier: Gul min 15, Grønn min 30, Blå min 200, Pes min 10)
         this.scaleTiers = {
             paw: [15, 20, 25, 30, 35, 40, 50, 60, 80, 100],
             flow: [30, 40, 60, 80, 100, 120, 150, 200, 250, 300],
-            vol: [200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000]
+            vol: [200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000],
+            pes: [10, 15, 20, 25, 30, 40]
         };
 
         // Holdetid før skala trappes ned (unngår flimring/uro)
         this.scaleHold = {
             paw: 0,
             flow: 0,
-            vol: 0
+            vol: 0,
+            pes: 0
         };
 
         // Databuffere (C7: min/maks-konvolutt per piksel)
@@ -118,10 +128,12 @@ class WaveformRenderer {
         this.flowData = [];
         this.volumeLungData = []; // Sann lungevolum buffer (A7)
         this.flowLungData = [];   // Sann lungeflow buffer (A7)
+        this.pesData = [];        // Muskelinnsats / oesofagustrykk (P_es / P_mus)
         this.markerData = [];     // D3: Innsatsmarkører per pikselposisjon
 
         // Pedagogisk modus: Vis sanne lungekurver overlagret (A7)
         this.showTrueCurves = false;
+        this.showPesTrack = false;
         this.currentEpap = 5;
 
         this.initCanvas();
@@ -190,6 +202,7 @@ class WaveformRenderer {
             this.autoScale.paw = isAuto;
             this.autoScale.flow = isAuto;
             this.autoScale.vol = isAuto;
+            this.autoScale.pes = isAuto;
         } else if (this.autoScale[trackId] !== undefined) {
             this.autoScale[trackId] = isAuto;
         }
@@ -201,10 +214,13 @@ class WaveformRenderer {
         this.scaleHold.paw = 0;
         this.scaleHold.flow = 0;
         this.scaleHold.vol = 0;
+        this.scaleHold.pes = 0;
         this.dynamicScales.pawMax = 15;
         this.dynamicScales.flowMax = 30;
         this.dynamicScales.flowMin = -30;
         this.dynamicScales.volMax = 200;
+        this.dynamicScales.pesMax = 10;
+        this.dynamicScales.pesMin = -10;
         this.resizeCanvas();
     }
 
@@ -215,7 +231,12 @@ class WaveformRenderer {
         this.flowData = new Array(this.activeWidth).fill(null);
         this.volumeLungData = new Array(this.activeWidth).fill(null);
         this.flowLungData = new Array(this.activeWidth).fill(null);
+        this.pesData = new Array(this.activeWidth).fill(null);
         this.markerData = new Array(this.activeWidth).fill(null);
+    }
+
+    resize() {
+        this.resizeCanvas();
     }
 
     resizeCanvas() {
@@ -241,13 +262,14 @@ class WaveformRenderer {
         this._clearBuffers();
     }
 
-    // C9: Automatisk dynamisk Y-skalering med begrensende minimumsverdier (Gul min 15, Grønn min 30, Blå min 200)
-    _updateDynamicScales(dt, currentPaw, currentVol, currentFlow, currentVolLung = 0, currentFlowLung = 0) {
+    // C9: Automatisk dynamisk Y-skalering med begrensende minimumsverdier (Gul min 15, Grønn min 30, Blå min 200, Pes min 10)
+    _updateDynamicScales(dt, currentPaw, currentVol, currentFlow, currentVolLung = 0, currentFlowLung = 0, currentPes = 0) {
         if (!this.activeWidth || this.activeWidth <= 0) return;
 
         let maxPaw = (currentPaw !== undefined && currentPaw !== null) ? currentPaw : 0;
         let maxFlow = (currentFlow !== undefined && currentFlow !== null) ? Math.abs(currentFlow) : 0;
         let maxVol = (currentVol !== undefined && currentVol !== null) ? currentVol : 0;
+        let maxPes = (currentPes !== undefined && currentPes !== null) ? Math.abs(currentPes) : 0;
 
         if (this.showTrueCurves) {
             if (currentFlowLung !== undefined && currentFlowLung !== null) {
@@ -270,6 +292,14 @@ class WaveformRenderer {
 
             const v = this.volumeData[x];
             if (v && v.max > maxVol) maxVol = v.max;
+
+            if (this.pesData) {
+                const pes = this.pesData[x];
+                if (pes) {
+                    const absPes = Math.max(Math.abs(pes.max), Math.abs(pes.min));
+                    if (absPes > maxPes) maxPes = absPes;
+                }
+            }
 
             if (this.showTrueCurves) {
                 const fl = this.flowLungData[x];
@@ -336,6 +366,25 @@ class WaveformRenderer {
                 this.scaleHold.vol = 0;
             }
         }
+
+        // 4. P_es (Magenta min 10)
+        if (this.autoScale.pes) {
+            const targetPes = this._findTargetTier(maxPes / headroomRatio, this.scaleTiers.pes, 10);
+            if (targetPes > this.dynamicScales.pesMax) {
+                this.dynamicScales.pesMax = targetPes;
+                this.dynamicScales.pesMin = -targetPes;
+                this.scaleHold.pes = 0;
+            } else if (targetPes < this.dynamicScales.pesMax) {
+                this.scaleHold.pes += dt;
+                if (this.scaleHold.pes >= 1.5) {
+                    this.dynamicScales.pesMax = targetPes;
+                    this.dynamicScales.pesMin = -targetPes;
+                    this.scaleHold.pes = 0;
+                }
+            } else {
+                this.scaleHold.pes = 0;
+            }
+        }
     }
 
     _findTargetTier(val, tiers, defaultMin = 10) {
@@ -364,7 +413,7 @@ class WaveformRenderer {
         const currentPx = Math.floor(this.sweepX);
 
         // Hent strukturert min/maks-prøve
-        let pSample, fSample, vSample, vLungSample, fLungSample;
+        let pSample, fSample, vSample, vLungSample, fLungSample, pesSample;
 
         if (typeof sampleOrPaw === 'object' && sampleOrPaw !== null) {
             pSample = { min: sampleOrPaw.pawMin, max: sampleOrPaw.pawMax, last: sampleOrPaw.pawLast };
@@ -372,6 +421,7 @@ class WaveformRenderer {
             vSample = { min: sampleOrPaw.volMin, max: sampleOrPaw.volMax, last: sampleOrPaw.volLast };
             fLungSample = (sampleOrPaw.flowLungMin !== undefined) ? { min: sampleOrPaw.flowLungMin, max: sampleOrPaw.flowLungMax, last: sampleOrPaw.flowLungLast } : null;
             vLungSample = (sampleOrPaw.volLungMin !== undefined) ? { min: sampleOrPaw.volLungMin, max: sampleOrPaw.volLungMax, last: sampleOrPaw.volLungLast } : null;
+            pesSample = { min: sampleOrPaw.pesMin, max: sampleOrPaw.pesMax, last: sampleOrPaw.pesLast };
         } else {
             // Bakoverkompatibilitet
             const p = sampleOrPaw;
@@ -380,6 +430,7 @@ class WaveformRenderer {
             vSample = { min: volume, max: volume, last: volume };
             fLungSample = (flowLung !== null) ? { min: flowLung, max: flowLung, last: flowLung } : null;
             vLungSample = (volumeLung !== null) ? { min: volumeLung, max: volumeLung, last: volumeLung } : null;
+            pesSample = { min: 0, max: 0, last: 0 };
         }
 
         // Oppdater dynamiske Y-akser
@@ -389,7 +440,8 @@ class WaveformRenderer {
             vSample.last,
             fSample.last,
             vLungSample ? vLungSample.last : 0,
-            fLungSample ? fLungSample.last : 0
+            fLungSample ? fLungSample.last : 0,
+            pesSample ? pesSample.last : 0
         );
 
         const startX = Math.floor(prevX);
@@ -403,6 +455,7 @@ class WaveformRenderer {
             this.volumeData[clearIdx] = null;
             this.flowLungData[clearIdx] = null;
             this.volumeLungData[clearIdx] = null;
+            if (this.pesData) this.pesData[clearIdx] = null;
             this.markerData[clearIdx] = null;
         }
 
@@ -424,6 +477,7 @@ class WaveformRenderer {
             writeToBuffer(this.volumeData, x, vSample);
             if (fLungSample) writeToBuffer(this.flowLungData, x, fLungSample);
             if (vLungSample) writeToBuffer(this.volumeLungData, x, vLungSample);
+            if (pesSample) writeToBuffer(this.pesData, x, pesSample);
         };
 
         // Fyll inn i buffer for sveipet
@@ -465,8 +519,8 @@ class WaveformRenderer {
         ctx.fillStyle = this.colors.bg;
         ctx.fillRect(0, 0, w, h);
 
-        // 3 faste spor: Paw, Flow og Volum
-        const numTracks = 3;
+        // 3 eller 4 spor avhengig av showPesTrack
+        const numTracks = this.showPesTrack ? 4 : 3;
         const trackHeight = h / numTracks;
 
         const tracks = [
@@ -474,6 +528,9 @@ class WaveformRenderer {
             { id: 'flow', label: 'Flow', unit: 'L/min', color: this.colors.flow, top: trackHeight, height: trackHeight },
             { id: 'vol', label: 'V', unit: 'ml', color: this.colors.volume, top: trackHeight * 2, height: trackHeight }
         ];
+        if (this.showPesTrack) {
+            tracks.push({ id: 'pes', label: 'P_es', unit: 'cmH₂O', color: this.colors.pes, top: trackHeight * 3, height: trackHeight });
+        }
 
         // 2. Rutenett, sekundmarkører og tidsakse
         this._drawGridAndTimeAxis(ctx, w, h, tracks, leftM, activeW);
@@ -482,6 +539,9 @@ class WaveformRenderer {
         this._drawPressureTrack(ctx, tracks[0], leftM, activeW);
         this._drawFlowTrack(ctx, tracks[1], leftM, activeW);
         this._drawVolumeTrack(ctx, tracks[2], leftM, activeW);
+        if (this.showPesTrack && tracks[3]) {
+            this._drawPesTrack(ctx, tracks[3], leftM, activeW);
+        }
 
         // 4. Tegn Sweep Bar og Erase Zone (bare når simuleringen er aktiv)
         if (!this.isFrozen) {
@@ -522,10 +582,12 @@ class WaveformRenderer {
         const pPt = this.pressureData[bufX];
         const fPt = this.flowData[bufX];
         const vPt = this.volumeData[bufX];
+        const pesPt = this.pesData ? this.pesData[bufX] : null;
 
         const pVal = pPt ? pPt.last : null;
         const fVal = fPt ? fPt.last : null;
         const vVal = vPt ? vPt.last : null;
+        const pesVal = pesPt ? pesPt.last : null;
 
         // Sekundposisjon i sveipet
         const timeSec = (bufX / activeW) * this.sweepDuration;
@@ -534,6 +596,7 @@ class WaveformRenderer {
         const getYForVal = (trackIndex, val) => {
             if (val === null || val === undefined) return null;
             const track = tracks[trackIndex];
+            if (!track) return null;
             const paddingTop = 22;
             const paddingBottom = 10;
             const bottomY = track.top + track.height - paddingBottom;
@@ -550,6 +613,10 @@ class WaveformRenderer {
             } else if (track.id === 'vol') {
                 const maxV = this.autoScale.vol ? this.dynamicScales.volMax : this.fixedScales.volMax;
                 return bottomY - (Math.max(0, val) / maxV) * usableH;
+            } else if (track.id === 'pes') {
+                const maxPes = this.autoScale.pes ? this.dynamicScales.pesMax : this.fixedScales.pesMax;
+                const zeroY = topY + usableH / 2;
+                return zeroY - (val / maxPes) * (usableH / 2);
             }
             return null;
         };
@@ -569,10 +636,13 @@ class WaveformRenderer {
         drawPointCircle(getYForVal(0, pVal), this.colors.pressure);
         drawPointCircle(getYForVal(1, fVal), this.colors.flow);
         drawPointCircle(getYForVal(2, vVal), this.colors.volume);
+        if (this.showPesTrack && tracks[3]) {
+            drawPointCircle(getYForVal(3, pesVal), this.colors.pes);
+        }
 
         // Tegn flytende tooltip-boks
         const cardW = 165;
-        const cardH = 100;
+        const cardH = this.showPesTrack ? 116 : 100;
         let cardX = curX + 12;
         if (cardX + cardW > leftM + activeW) {
             cardX = curX - cardW - 12;
@@ -613,6 +683,14 @@ class WaveformRenderer {
         lineY += 16;
         ctx.fillStyle = this.colors.volume;
         ctx.fillText(`Vol:  ${vVal !== null ? vVal.toFixed(0) : '--'} ml`, cardX + 10, lineY);
+
+        if (this.showPesTrack) {
+            lineY += 16;
+            ctx.fillStyle = this.colors.pes;
+            const pesPrefix = (pesVal !== null && pesVal > 0) ? '+' : '';
+            const pesText = (pesVal !== null) ? `${pesPrefix}${pesVal.toFixed(1)}` : '--';
+            ctx.fillText(`P_es: ${pesText} cmH₂O`, cardX + 10, lineY);
+        }
 
         ctx.restore();
     }
@@ -743,7 +821,7 @@ class WaveformRenderer {
             if (maxVal <= 80) return [80, 60, 40, 20, 0];
             if (maxVal <= 100) return [100, 75, 50, 25, 0];
             return this._calculateTicks(0, maxVal, 4);
-        } else if (type === 'flow') {
+        } else if (type === 'flow' || type === 'pes') {
             const mid = Math.round(maxVal / 2);
             return [maxVal, mid, 0, -mid, -maxVal];
         } else if (type === 'vol') {
@@ -921,6 +999,58 @@ class WaveformRenderer {
             ctx.fillText(`${val}`, leftM - 7, y + 3.5);
         });
 
+        // 4. P_es Akse (Nederst når 4. spor er aktivert)
+        if (this.showPesTrack && tracks[3]) {
+            const pesTrack = tracks[3];
+            const pesTopY = pesTrack.top + paddingTop;
+            const pesBottomY = pesTrack.top + pesTrack.height - paddingBottom;
+            const pesZeroY = pesTopY + (pesBottomY - pesTopY) / 2;
+            const pesHalfH = (pesBottomY - pesTopY) / 2;
+            const pesMax = this.autoScale.pes ? this.dynamicScales.pesMax : this.fixedScales.pesMax;
+
+            ctx.fillStyle = pesTrack.color;
+            ctx.font = 'bold 12px "Segoe UI", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('P_es', 8, pesTrack.top + 14);
+            ctx.fillStyle = this.colors.text;
+            ctx.font = '500 9px monospace';
+            ctx.fillText('cmH₂O', 8, pesTrack.top + 24);
+
+            if (!this.autoScale.pes) {
+                ctx.fillStyle = 'rgba(217, 70, 239, 0.7)';
+                ctx.font = '600 8px monospace';
+                ctx.fillText('🔒LÅS', leftM - 38, pesTrack.top + 13);
+            }
+
+            const pesTicks = this._getTicksForScale('pes', pesMax);
+            pesTicks.forEach(val => {
+                const ratio = val / pesMax;
+                const y = pesZeroY - ratio * pesHalfH;
+
+                if (Math.abs(val) > 0 && Math.abs(val) < pesMax) {
+                    ctx.strokeStyle = this.colors.gridTickLine;
+                    ctx.lineWidth = 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(leftM, y);
+                    ctx.lineTo(leftM + activeW, y);
+                    ctx.stroke();
+                }
+
+                ctx.strokeStyle = (val === 0) ? this.colors.zeroLine : this.colors.axisLine;
+                ctx.lineWidth = (val === 0) ? 1.5 : 1;
+                ctx.beginPath();
+                ctx.moveTo(leftM - 6, y);
+                ctx.lineTo(leftM, y);
+                ctx.stroke();
+
+                ctx.fillStyle = (val === 0) ? this.colors.textBright : this.colors.text;
+                ctx.font = (val === 0) ? 'bold 10px monospace' : '9px monospace';
+                ctx.textAlign = 'right';
+                const prefix = (val > 0) ? '+' : '';
+                ctx.fillText(`${prefix}${val}`, leftM - 7, y + 3.5);
+            });
+        }
+
         ctx.restore();
     }
 
@@ -1080,6 +1210,53 @@ class WaveformRenderer {
         }
     }
 
+    _drawPesTrack(ctx, track, leftM, activeW) {
+        const paddingBottom = 10;
+        const paddingTop = 22;
+        const topY = track.top + paddingTop;
+        const bottomY = track.top + track.height - paddingBottom;
+        const zeroY = topY + (bottomY - topY) / 2;
+        const halfH = (bottomY - topY) / 2;
+        const rightEdge = leftM + activeW;
+        const pesMax = this.autoScale.pes ? this.dynamicScales.pesMax : this.fixedScales.pesMax;
+        const pesMin = -pesMax;
+
+        // Tydelig 0-linje for P_es
+        ctx.save();
+        ctx.strokeStyle = this.colors.zeroLine;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(leftM, zeroY);
+        ctx.lineTo(rightEdge, zeroY);
+        ctx.stroke();
+        ctx.restore();
+
+        const toY = (pes) => {
+            const clamped = Math.max(pesMin, Math.min(pesMax, pes));
+            const ratio = clamped / pesMax; // -1 til +1
+            return zeroY - ratio * halfH;
+        };
+
+        // Tegn P_es-kurven med min/maks-konvolutt og magenta arealfylling
+        this._renderFlowEnvelopeWithArea(
+            ctx,
+            this.pesData,
+            toY,
+            zeroY,
+            leftM,
+            activeW,
+            pesMin,
+            pesMax,
+            this.colors.pes,
+            this.colors.pesFill,
+            this.colors.pesFill
+        );
+    }
+
+    _renderPesTrack(ctx, track, leftM, activeW) {
+        this._drawPesTrack(ctx, track, leftM, activeW);
+    }
+
     // C7 & C9: Tegner min/maks-konvolutt for Paw eller Volum med klippe-indikator
     _renderEnvelopeWaveform(ctx, data, toYFn, strokeColor, fillColor, baselineY, leftM, activeW, minLimit, maxLimit) {
         const sweepX = this.sweepX;
@@ -1186,8 +1363,8 @@ class WaveformRenderer {
         ctx.restore();
     }
 
-    // C7 & C9: Tegner Flow-kurve med min/maks-konvolutt og distinkt arealfylling (+/-)
-    _renderFlowEnvelopeWithArea(ctx, data, toYFn, zeroY, leftM, activeW, minLimit, maxLimit) {
+    // C7 & C9: Tegner Flow- eller P_es-kurve med min/maks-konvolutt og distinkt arealfylling (+/-)
+    _renderFlowEnvelopeWithArea(ctx, data, toYFn, zeroY, leftM, activeW, minLimit, maxLimit, strokeColor = this.colors.flow, fillPos = this.colors.flowFillPos, fillNeg = this.colors.flowFillNeg) {
         const sweepX = this.sweepX;
         const eraseEnd = (sweepX + this.eraseWidth) % activeW;
 
@@ -1198,7 +1375,7 @@ class WaveformRenderer {
         const drawSegment = (fromX, toX) => {
             if (fromX >= toX) return;
 
-            // 1. Tegn areal-fylling (Inspirasjon over 0-linje og Ekspirasjon under 0-linje)
+            // 1. Tegn areal-fylling (over og under 0-linje)
             for (let x = fromX; x <= toX; x++) {
                 const pt = data[x];
                 if (pt && Math.abs(pt.last) > 0.5) {
@@ -1206,9 +1383,9 @@ class WaveformRenderer {
                     const screenY = toYFn(pt.last);
 
                     if (pt.last > 0) {
-                        ctx.fillStyle = this.colors.flowFillPos;
+                        ctx.fillStyle = fillPos;
                     } else {
-                        ctx.fillStyle = this.colors.flowFillNeg;
+                        ctx.fillStyle = fillNeg;
                     }
                     ctx.fillRect(screenX, Math.min(zeroY, screenY), 1.2, Math.abs(screenY - zeroY));
                 }
@@ -1216,7 +1393,7 @@ class WaveformRenderer {
 
             // 2. Tegn selve kurvelinjen med min/maks-konvolutt
             ctx.beginPath();
-            ctx.strokeStyle = this.colors.flow;
+            ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 1.2;
             let drawing = false;
             const clippedPoints = [];
