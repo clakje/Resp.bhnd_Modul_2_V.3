@@ -136,6 +136,11 @@ class WaveformRenderer {
         this.showPesTrack = false;
         this.currentEpap = 5;
 
+        // Fase 7 (Oppgave 7.2): Sporing av volumavvik ved slutt-ekspirasjon
+        this.volumeDivergenceHold = 0;
+        this._prevVolLast = 0;
+        this._prevVolLungLast = 0;
+
         this.initCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
     }
@@ -503,6 +508,22 @@ class WaveformRenderer {
         } else if (isTriggered) {
             this.markerData[currentPx] = { type: 'assist', t: this.sweepTime };
         }
+
+        // Fase 7 (Oppgave 7.2): Mål avvik mellom maskinmålt og sant volum ved slutt-ekspirasjon
+        if (this.volumeDivergenceHold > 0) {
+            this.volumeDivergenceHold = Math.max(0, this.volumeDivergenceHold - dt);
+        }
+
+        const isBreathStart = isTriggered || (events && Array.isArray(events) && events.some(e => e.type === 'assist' || e.type === 'auto' || e.type === 'double' || e.type === 'mandatory'));
+        if (isBreathStart) {
+            const endExpDiff = Math.abs(this._prevVolLast - this._prevVolLungLast);
+            if (endExpDiff > 200) {
+                this.volumeDivergenceHold = 15.0; // Behold etiketten synlig i minst ett fullt sveip
+            }
+        }
+
+        this._prevVolLast = vSample.last;
+        this._prevVolLungLast = (vLungSample !== null && vLungSample !== undefined) ? vLungSample.last : 0;
     }
 
     // Hovedtegne-loop
@@ -1224,6 +1245,16 @@ class WaveformRenderer {
             ctx.fillText('--- Sant V_lunge (pasient)', rightEdge - 8, topY + 12);
             ctx.fillStyle = this.colors.volume;
             ctx.fillText('— V_meas (maskin)', rightEdge - 150, topY + 12);
+            ctx.restore();
+        }
+
+        // Fase 7 (Oppgave 7.2): Diskret etikett når maskinmålt volum avviker > 200 ml fra sant volum ved slutt-ekspirasjon
+        if (this.volumeDivergenceHold > 0) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.85)';
+            ctx.font = '500 10px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('Maskinmålt volum ≠ pasientvolum (lekkasje)', leftM + 10, topY + 12);
             ctx.restore();
         }
     }

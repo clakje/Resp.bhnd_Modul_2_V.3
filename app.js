@@ -336,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'Autotrigging',
             badge: '⚡ Falsk trigging',
             pasient: 'Mann 61 år, opioidsedert etter thoraxkirurgi. Nesesonde under masken gir dårlig passform.',
+            visSanneKurver: true,
             mode: 'PS', ipap: 13, epap: 5, rr: 12, fio2: 40,
             riseTime: 150, cycling: 25, tiSet: 1.0, tiMax: 2.0, leak: 45,
             triggerMode: 'flow', triggerVal: 1.0, stActive: false, backupRate: 12,
@@ -408,6 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'For tidlig avslutning',
             badge: '⏱️ Dobbelttrigging',
             pasient: 'Kvinne 39 år, alvorlig viral pneumoni med ARDS-lignende bilde. Meget høy drive, lang nevral inspirasjon.',
+            visSanneKurver: true,
             mode: 'PS', ipap: 13, epap: 6, rr: 28, fio2: 70,
             riseTime: 150, cycling: 50, tiSet: 1.0, tiMax: 2.0, leak: 5,
             triggerMode: 'flow', triggerVal: 2.0, stActive: false, backupRate: 14,
@@ -1234,6 +1236,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Sett ventilasjonsmodus (PS/PC)
         setVentilationMode(scen.mode);
+
+        // Fase 7: Slå på sanne kurver automatisk for scenarier med stort volumavvik (A7 / 7.2)
+        const showTrue = !!scen.visSanneKurver;
+        renderer.showTrueCurves = showTrue;
+        if (checkShowTrueCurves) {
+            checkShowTrueCurves.checked = showTrue;
+        }
 
         // D6: Klargjør fasit-annotasjoner for dette scenarioet
         renderer.setAnnotations(scen.annotations || []);

@@ -369,7 +369,7 @@ class VentilatorSimulator {
     // Sett klinisk pasientprofil (Preset)
     setPreset(presetName) {
         if (presetName === 'copd') {
-            // KOLS / Obstruktiv: Høy motstand, flowbegrensning, høy compliance, forlenget ekspirasjon (A6)
+            // KOLS / Obstruktiv: Moderat profil som tømmer lungene ved lav frekvens (A6)
             this.patient.compliance = 70;
             this.patient.resistance = 16;
             this.patient.expRatio = 1.4;
@@ -382,27 +382,27 @@ class VentilatorSimulator {
             this.patientDrive.variability = 10;
             this.patientDrive.cardiacArtifact = 0.0;
         } else if (presetName === 'restrictive') {
-            // Pneumoni / Lungeødem / ARDS: Stiv lunge, lav compliance, rask grunn respirasjon
-            this.patient.compliance = 22;
-            this.patient.resistance = 5;
-            this.patient.expRatio = 1.5;
+            // Pneumoni / Lungeødem / ARDS: Stiv lunge, lav compliance, rask grunn respirasjon (Fase 7)
+            this.patient.compliance = 28;
+            this.patient.resistance = 6;
+            this.patient.expRatio = 1.3;
             this.patient.flowLimitation = 0.0;
             this.patient.preset = 'restrictive';
-            this.patientDrive.rrSpont = 20;
-            this.patientDrive.pmusMax = 3.5;
-            this.patientDrive.tiNeural = 0.7;
+            this.patientDrive.rrSpont = 24;
+            this.patientDrive.pmusMax = 7.0;
+            this.patientDrive.tiNeural = 0.6;
             this.patientDrive.pmusExp = 0.0;
             this.patientDrive.variability = 10;
-            this.patientDrive.cardiacArtifact = 0.0;
+            this.patientDrive.cardiacArtifact = 0.3;
         } else {
-            // Normal (Frisk pasient)
-            this.patient.compliance = 90;
+            // Normal (Frisk pasient) (Fase 7)
+            this.patient.compliance = 80;
             this.patient.resistance = 5;
             this.patient.expRatio = 1.0;
             this.patient.flowLimitation = 0.0;
             this.patient.preset = 'normal';
             this.patientDrive.rrSpont = 12;
-            this.patientDrive.pmusMax = 5.0;
+            this.patientDrive.pmusMax = 4.0;
             this.patientDrive.tiNeural = 1.0;
             this.patientDrive.pmusExp = 0.0;
             this.patientDrive.variability = 15;
